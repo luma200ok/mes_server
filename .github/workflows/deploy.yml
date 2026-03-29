@@ -131,8 +131,9 @@ jobs:
           script: |
             set -e
             DEPLOY_DIR="/home/${{ secrets.EC2_USERNAME }}/mes-server"
-            JAR_PATH=$(find $DEPLOY_DIR/deploy/ -name "*.jar" | head -1)
+            JAR_PATH=$(find $DEPLOY_DIR/deploy/ -name "*.jar" ! -name "*plain*" | head -1)
             if [ -z "$JAR_PATH" ]; then echo "❌ JAR 파일 없음"; exit 1; fi
+            echo "▶ 실행 JAR: $JAR_PATH"
             mkdir -p $DEPLOY_DIR/logs
 
             # 현재 실행 중인 포트 확인 (Blue=8085, Green=8086)
