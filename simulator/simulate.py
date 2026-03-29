@@ -20,7 +20,7 @@ from typing import Optional
 # ── 설정 ──────────────────────────────────────────
 BASE_URL   = os.getenv("MES_BASE_URL",        "http://localhost:8080")
 INTERVAL   = int(os.getenv("SENSOR_INTERVAL", "3"))       # 센서 전송 주기 (초)
-FAULT_RATE = float(os.getenv("FAULT_RATE",    "0.01"))    # 이상 데이터 비율 (1%)
+FAULT_RATE = float(os.getenv("FAULT_RATE",    "0.001"))    # 이상 데이터 비율 (0.1%)
 SEED       = int(os.getenv("RANDOM_SEED",     "42"))
 ADMIN_ID   = os.getenv("MES_ADMIN_ID",        "admin")
 ADMIN_PW   = os.getenv("MES_ADMIN_PW",        "admin1234")
