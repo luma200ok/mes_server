@@ -6,11 +6,8 @@ on:
   pull_request:
     branches: [ main ]
 
-env:
-  IMAGE_NAME: mes-server
-
 jobs:
-  # ── 1. 빌드 & 테스트 ─────────────────────────────────────────────────
+  # ── 1. 빌드 & 테스트 ──────────────────────────────────────────────
   build:
     name: Build & Test
     runs-on: ubuntu-latest
@@ -40,7 +37,7 @@ jobs:
           path: build/libs/*.jar
           retention-days: 1
 
-  # ── 2. Blue-Green 배포 (main 브랜치 push 시만) ──────────────────────
+  # ── 2. Blue-Green 배포 (main 브랜치 push 시만) ────────────────────
   deploy:
     name: Blue-Green Deploy
     needs: build
@@ -58,29 +55,30 @@ jobs:
         uses: appleboy/scp-action@v0.1.7
         with:
           host:     ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
+          username: ${{ secrets.EC2_USERNAME }}
           key:      ${{ secrets.EC2_SSH_KEY }}
           source:   "./jar/*.jar"
-          target:   "/home/${{ secrets.EC2_USER }}/mes-server/deploy"
+          target:   "/home/${{ secrets.EC2_USERNAME }}/mes-server/deploy"
           strip_components: 1
 
       - name: Blue-Green Switch
         uses: appleboy/ssh-action@v1.0.3
         with:
           host:     ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
+          username: ${{ secrets.EC2_USERNAME }}
           key:      ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -e
-            DEPLOY_DIR="/home/${{ secrets.EC2_USER }}/mes-server"
+            DEPLOY_DIR="/home/${{ secrets.EC2_USERNAME }}/mes-server"
             JAR_PATH="$DEPLOY_DIR/deploy/mes_server-0.0.1-SNAPSHOT.jar"
+            mkdir -p $DEPLOY_DIR/logs
 
-            # 현재 실행 중인 포트 확인 (Blue=8080, Green=8081)
-            CURRENT_PORT=$(cat $DEPLOY_DIR/current_port 2>/dev/null || echo "8080")
-            if [ "$CURRENT_PORT" = "8080" ]; then
-              NEW_PORT=8081
+            # 현재 실행 중인 포트 확인 (Blue=8085, Green=8086)
+            CURRENT_PORT=$(cat $DEPLOY_DIR/current_port 2>/dev/null || echo "8085")
+            if [ "$CURRENT_PORT" = "8085" ]; then
+              NEW_PORT=8086
             else
-              NEW_PORT=8080
+              NEW_PORT=8085
             fi
 
             echo "▶ 새 인스턴스 포트: $NEW_PORT (기존: $CURRENT_PORT)"
@@ -88,14 +86,19 @@ jobs:
             # 새 포트로 앱 실행
             nohup java -jar \
               -Dspring.profiles.active=prod \
-              -Dserver.port=$NEW_PORT \
+              -DSERVER_PORT=$NEW_PORT \
+              -DDB_USERNAME=${{ secrets.DB_USERNAME }} \
+              -DDB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              -DJWT_SECRET=${{ secrets.JWT_SECRET }} \
               $JAR_PATH > $DEPLOY_DIR/logs/app-$NEW_PORT.log 2>&1 &
 
             # 헬스체크 (최대 60초 대기)
             echo "헬스체크 시작..."
             for i in $(seq 1 20); do
               sleep 3
-              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$NEW_PORT/actuator/health 2>/dev/null || echo "000")
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                --connect-timeout 3 --max-time 5 \
+                http://localhost:$NEW_PORT/actuator/health 2>/dev/null || echo "000")
               if [ "$STATUS" = "200" ]; then
                 echo "✅ 새 인스턴스 정상 (포트: $NEW_PORT)"
                 break

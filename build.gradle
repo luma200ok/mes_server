@@ -77,6 +77,9 @@ dependencies {
     // HTTP Client (Discord Webhook)
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
+    // Actuator (헬스체크)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
