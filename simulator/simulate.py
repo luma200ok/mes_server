@@ -26,7 +26,7 @@ ADMIN_ID   = os.getenv("MES_ADMIN_ID",        "admin")
 ADMIN_PW   = os.getenv("MES_ADMIN_PW",        "admin1234")
 
 # 임계값 대비 정상/이상 범위 비율
-NORMAL_RATIO = (0.70, 0.90)   # 임계값의 70~90%   → 정상
+NORMAL_RATIO = (0.70, 0.99)   # 임계값의 70~99%   → 정상
 FAULT_RATIO  = (1.00, 1.20)   # 임계값의 100~120% → 이상 (임계값 초과 즉시 불량)
 # ─────────────────────────────────────────────────
 
