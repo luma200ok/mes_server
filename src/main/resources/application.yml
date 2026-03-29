@@ -23,9 +23,6 @@ spring:
     pathmatch:
       matching-strategy: ant_path_matcher
 
-server:
-  port: 8080
-
 jwt:
   # JWT 서명 시크릿 키 (필수)
   secret: ${JWT_SECRET}

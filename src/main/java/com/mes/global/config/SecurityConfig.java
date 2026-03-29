@@ -1,6 +1,8 @@
 package com.mes.global.config;
 
 import com.mes.global.security.JwtAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,6 +29,8 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // ERROR/ASYNC/INCLUDE dispatch는 보안 필터 통과 허용 (SSE async 에러 처리)
+                .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC, DispatcherType.INCLUDE).permitAll()
                 // 인증 불필요
                 .requestMatchers(
                     "/api/auth/**",
@@ -47,7 +51,19 @@ public class SecurityConfig {
                 // 나머지는 로그인만 하면 가능
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .exceptionHandling(ex -> ex
+                .accessDeniedHandler((request, response, e) -> {
+                    if (!response.isCommitted()) {
+                        response.sendError(HttpServletResponse.SC_FORBIDDEN);
+                    }
+                })
+                .authenticationEntryPoint((request, response, e) -> {
+                    if (!response.isCommitted()) {
+                        response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+                    }
+                })
+            );
 
         return http.build();
     }

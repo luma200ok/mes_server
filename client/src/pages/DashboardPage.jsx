@@ -2,9 +2,15 @@ import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getOee, getSensorHistory, exportExcel, exportCsv } from '../api/dashboard';
 
-const todayStr  = () => new Date().toISOString().slice(0, 10);
-const todayStart = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,16); };
-const nowStr    = () => new Date().toISOString().slice(0, 16);
+const pad = n => String(n).padStart(2, '0');
+const localDateStr = (d) =>
+  `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const localDateTimeStr = (d) =>
+  `${localDateStr(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+const todayStr   = () => localDateStr(new Date());
+const todayStart = () => { const d = new Date(); d.setHours(0,0,0,0); return localDateTimeStr(d); };
+const nowStr     = () => localDateTimeStr(new Date());
 
 const EQUIP_IDS = ['EQ-001', 'EQ-002', 'EQ-003'];
 

@@ -55,9 +55,8 @@ public class SseEmitterService {
             try {
                 emitter.send(SseEmitter.event().name("sensorData").data(data));
             } catch (IOException e) {
-                log.warn("SSE 전송 실패: {}", e.getMessage());
-                emitter.complete();
                 remove(key, emitter);
+                try { emitter.complete(); } catch (Exception ignored) {}
             }
         });
     }
