@@ -43,3 +43,7 @@ out/
 
 
 /src/main/generated/
+
+# Frontend
+client/node_modules/
+client/dist/
