@@ -17,8 +17,13 @@ spring:
       password: ${REDIS_PASSWORD:}
       timeout: 6000ms
 
+
+server:
+  port: 8080
+
+
 jwt:
-  secret: mes-local-dev-only-secret-key-do-not-use-in-production-256bit
+  secret: ${JWT_SECRET}
 
 logging:
   level:
