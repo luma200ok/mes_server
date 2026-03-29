@@ -1,6 +1,7 @@
 package com.mes.domain.sensor;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -13,14 +14,16 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Service
 public class SseEmitterService {
 
-    private static final long TIMEOUT = 30 * 60 * 1000L; // 30분
+    @Value("${mes.sse.timeout-ms}")
+    private long timeoutMs;
+
     private final ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>> emitters = new ConcurrentHashMap<>();
 
     private static final String ALL = "__ALL__";
 
     public SseEmitter subscribe(String equipmentId) {
         String key = (equipmentId == null || equipmentId.isBlank()) ? ALL : equipmentId;
-        SseEmitter emitter = new SseEmitter(TIMEOUT);
+        SseEmitter emitter = new SseEmitter(timeoutMs);
         emitters.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>()).add(emitter);
 
         emitter.onCompletion(() -> remove(key, emitter));

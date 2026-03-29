@@ -9,6 +9,7 @@ import com.opencsv.CSVWriter;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,7 +24,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DashboardService {
 
-    private static final double PLANNED_OPERATION_HOURS = 8.0;
+    @Value("${mes.oee.planned-operation-hours}")
+    private double plannedOperationHours;
 
     private final DashboardQueryRepository dashboardQueryRepository;
     private final SensorHistoryRepository sensorHistoryRepository;
@@ -38,8 +40,10 @@ public class DashboardService {
                 .findDefectStats(equipmentId, date)
                 .orElse(new SensorStatisticsDto(equipmentId, 0));
 
+        // DEFECTIVE도 설비가 가동된 것이므로 가용률에 포함 (품질 문제는 quality 지표로 반영)
+        long processedWorkOrders = woStats.getCompletedWorkOrders() + woStats.getDefectiveWorkOrders();
         double availability = woStats.getTotalWorkOrders() == 0 ? 0.0
-                : (double) woStats.getCompletedWorkOrders() / woStats.getTotalWorkOrders();
+                : (double) processedWorkOrders / woStats.getTotalWorkOrders();
 
         double performance = woStats.getTotalPlannedQty() == 0 ? 0.0
                 : (double) woStats.getTotalCompletedQty() / woStats.getTotalPlannedQty();

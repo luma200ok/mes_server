@@ -1,5 +1,8 @@
 package com.mes.domain.workorder;
 
+import com.mes.domain.defect.Defect;
+import com.mes.domain.defect.DefectRepository;
+import com.mes.domain.defect.DefectType;
 import com.mes.domain.equipment.Equipment;
 import com.mes.domain.equipment.EquipmentRepository;
 import com.mes.domain.workorder.dto.*;
@@ -29,6 +32,7 @@ public class WorkOrderService {
     private final WorkOrderRepository workOrderRepository;
     private final WorkOrderHistoryRepository historyRepository;
     private final EquipmentRepository equipmentRepository;
+    private final DefectRepository defectRepository;
 
     private final AtomicInteger workOrderSeq = new AtomicInteger(0);
 
@@ -185,6 +189,35 @@ public class WorkOrderService {
             case STRING  -> Double.parseDouble(cell.getStringCellValue().trim());
             default      -> 0;
         };
+    }
+
+    /**
+     * 센서 임계값 초과 시 자동 불량 처리.
+     * IN_PROGRESS 상태 작업지시가 없으면 조용히 return.
+     * completedQty 검증 없이 Defect qty=1 저장.
+     */
+    @Transactional
+    public void autoMarkDefective(String equipmentId, DefectType defectType) {
+        workOrderRepository
+                .findFirstByEquipment_EquipmentIdAndStatus(equipmentId, WorkOrderStatus.IN_PROGRESS)
+                .ifPresent(workOrder -> {
+                    defectRepository.save(Defect.builder()
+                            .workOrder(workOrder)
+                            .equipment(workOrder.getEquipment())
+                            .defectType(defectType)
+                            .qty(1)
+                            .note("[자동] 센서 임계값 초과 (" + defectType.name() + ")")
+                            .build());
+
+                    workOrder.markDefective();
+
+                    historyRepository.save(WorkOrderHistory.builder()
+                            .workOrder(workOrder)
+                            .fromStatus(WorkOrderStatus.IN_PROGRESS)
+                            .toStatus(WorkOrderStatus.DEFECTIVE)
+                            .changedBy("SYSTEM_SENSOR")
+                            .build());
+                });
     }
 
     private String generateWorkOrderNo() {

@@ -57,7 +57,6 @@ public class WorkOrder {
         this.workOrderNo = workOrderNo;
         this.equipment = equipment;
         this.plannedQty = plannedQty;
-        this.completedQty = 0;
         this.status = WorkOrderStatus.PENDING;
     }
 
@@ -77,9 +76,11 @@ public class WorkOrder {
     }
 
     public void markDefective() {
-        if (this.status == WorkOrderStatus.IN_PROGRESS) {
+        if (this.status == WorkOrderStatus.IN_PROGRESS || this.status == WorkOrderStatus.COMPLETED) {
             this.status = WorkOrderStatus.DEFECTIVE;
-            this.completedAt = LocalDateTime.now();
+            if (this.completedAt == null) {
+                this.completedAt = LocalDateTime.now();
+            }
         }
     }
 }

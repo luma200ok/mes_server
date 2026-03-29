@@ -51,6 +51,18 @@ public class EquipmentService {
         equipmentRepository.delete(equipment);
     }
 
+    /**
+     * 설비 존재 여부만 확인 — 결과를 캐시해 반복 SELECT 제거.
+     * 존재하지 않으면 EQUIPMENT_NOT_FOUND 예외.
+     */
+    @Cacheable(value = "equipmentExists", key = "#equipmentId")
+    public boolean validateExists(String equipmentId) {
+        if (!equipmentRepository.existsByEquipmentId(equipmentId)) {
+            throw new CustomException(ErrorCode.EQUIPMENT_NOT_FOUND);
+        }
+        return true;
+    }
+
     @Cacheable(value = "equipmentConfig", key = "#equipmentId")
     public EquipmentConfigResponse findConfig(String equipmentId) {
         return configRepository.findByEquipment_EquipmentId(equipmentId)

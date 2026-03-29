@@ -17,6 +17,9 @@ spring:
       password: ${REDIS_PASSWORD:}
       timeout: 6000ms
 
+jwt:
+  secret: mes-local-dev-only-secret-key-do-not-use-in-production-256bit
+
 logging:
   level:
     com.mes: DEBUG

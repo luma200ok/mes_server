@@ -7,7 +7,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
@@ -15,13 +18,26 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @RequiredArgsConstructor
 public class DiscordWebhookService {
 
+    @Value("${mes.discord.alarm-cooldown-minutes}")
+    private long cooldownMinutes;
+
     @Value("${discord.webhook-url:}")
     private String webhookUrl;
 
     private final WebClient.Builder webClientBuilder;
     private final AlarmHistoryService alarmHistoryService;
 
+    /** equipmentId:metric → 마지막 알람 발송 시각 */
+    private final ConcurrentHashMap<String, Instant> lastAlarmMap = new ConcurrentHashMap<>();
+
     public void sendAlert(String equipmentId, String metric, double value, double threshold) {
+        String cooldownKey = equipmentId + ":" + metric;
+        Instant lastSent = lastAlarmMap.get(cooldownKey);
+        if (lastSent != null && Duration.between(lastSent, Instant.now()).compareTo(Duration.ofMinutes(cooldownMinutes)) < 0) {
+            return; // 쿨다운 중 — 중복 알람 차단
+        }
+        lastAlarmMap.put(cooldownKey, Instant.now());
+
         AtomicBoolean discordSent = new AtomicBoolean(false);
 
         if (webhookUrl != null && !webhookUrl.isBlank()) {

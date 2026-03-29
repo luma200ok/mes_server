@@ -1,21 +1,24 @@
 package com.mes.domain.sensor;
 
-import com.mes.domain.equipment.EquipmentConfigRepository;
-import com.mes.domain.equipment.EquipmentRepository;
+import com.mes.domain.defect.DefectType;
+import com.mes.domain.equipment.EquipmentService;
 import com.mes.domain.equipment.dto.EquipmentConfigResponse;
 import com.mes.domain.sensor.dto.SensorDataRequest;
+import com.mes.domain.workorder.WorkOrderService;
 import com.mes.global.discord.DiscordWebhookService;
 import com.mes.global.exception.CustomException;
 import com.mes.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -23,18 +26,29 @@ import java.util.Map;
 public class SensorService {
 
     private static final String SENSOR_KEY_PREFIX = "sensor:";
-    private static final Duration SENSOR_TTL = Duration.ofSeconds(60);
+
+    @Value("${mes.sensor.ttl-seconds}")
+    private long sensorTtlSeconds;
+
+    @Value("${mes.sensor.defect-cooldown-minutes}")
+    private long defectCooldownMinutes;
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private final EquipmentRepository equipmentRepository;
-    private final EquipmentConfigRepository configRepository;
+    private final EquipmentService equipmentService;
     private final DiscordWebhookService discordWebhookService;
     private final SseEmitterService sseEmitterService;
+    private final WorkOrderService workOrderService;
 
+    /** equipmentId:DefectType → 마지막 불량 전환 시각 */
+    private final ConcurrentHashMap<String, Instant> lastDefectMap = new ConcurrentHashMap<>();
+
+    /**
+     * 센서 데이터 수신 — Redis 저장 + SSE 브로드캐스트만 수행.
+     * DB 접근 없음 (equipment 존재 확인은 캐시, 상태 업데이트는 스케줄러 위임).
+     */
     public void receiveSensorData(SensorDataRequest request) {
-        if (!equipmentRepository.existsByEquipmentId(request.equipmentId())) {
-            throw new CustomException(ErrorCode.EQUIPMENT_NOT_FOUND);
-        }
+        // 설비 존재 여부 확인 (캐시 히트 시 DB 접근 없음)
+        equipmentService.validateExists(request.equipmentId());
 
         SensorData sensorData = SensorData.builder()
                 .equipmentId(request.equipmentId())
@@ -48,29 +62,51 @@ public class SensorService {
         checkThresholds(sensorData);
 
         String key = SENSOR_KEY_PREFIX + request.equipmentId();
-        redisTemplate.opsForValue().set(key, sensorData, SENSOR_TTL);
+        redisTemplate.opsForValue().set(key, sensorData, Duration.ofSeconds(sensorTtlSeconds));
 
         sseEmitterService.broadcast(request.equipmentId(), sensorData);
     }
 
     private void checkThresholds(SensorData data) {
-        configRepository.findByEquipment_EquipmentId(data.getEquipmentId()).ifPresent(config -> {
-            if (data.getTemperature() > config.getMaxTemperature()) {
-                data.setStatus("FAULT");
-                discordWebhookService.sendAlert(data.getEquipmentId(), "온도",
-                        data.getTemperature(), config.getMaxTemperature());
-            }
-            if (data.getVibration() > config.getMaxVibration()) {
-                data.setStatus("FAULT");
-                discordWebhookService.sendAlert(data.getEquipmentId(), "진동",
-                        data.getVibration(), config.getMaxVibration());
-            }
-            if (data.getRpm() > config.getMaxRpm()) {
-                data.setStatus("FAULT");
-                discordWebhookService.sendAlert(data.getEquipmentId(), "RPM",
-                        data.getRpm(), config.getMaxRpm());
-            }
-        });
+        EquipmentConfigResponse config;
+        try {
+            config = equipmentService.findConfig(data.getEquipmentId());
+        } catch (CustomException e) {
+            return; // 설정 없으면 임계값 검사 스킵
+        }
+        if (data.getTemperature() > config.maxTemperature()) {
+            data.setStatus("FAULT");
+            discordWebhookService.sendAlert(data.getEquipmentId(), "온도",
+                    data.getTemperature(), config.maxTemperature());
+            triggerAutoDefect(data.getEquipmentId(), DefectType.TEMPERATURE);
+        }
+        if (data.getVibration() > config.maxVibration()) {
+            data.setStatus("FAULT");
+            discordWebhookService.sendAlert(data.getEquipmentId(), "진동",
+                    data.getVibration(), config.maxVibration());
+            triggerAutoDefect(data.getEquipmentId(), DefectType.VIBRATION);
+        }
+        if (data.getRpm() > config.maxRpm()) {
+            data.setStatus("FAULT");
+            discordWebhookService.sendAlert(data.getEquipmentId(), "RPM",
+                    data.getRpm(), config.maxRpm());
+            triggerAutoDefect(data.getEquipmentId(), DefectType.RPM);
+        }
+    }
+
+    private void triggerAutoDefect(String equipmentId, DefectType defectType) {
+        String key = equipmentId + ":" + defectType.name();
+        Instant last = lastDefectMap.get(key);
+        if (last != null && Duration.between(last, Instant.now()).toMinutes() < defectCooldownMinutes) {
+            return; // 쿨다운 중 — 스킵
+        }
+        lastDefectMap.put(key, Instant.now());
+        try {
+            workOrderService.autoMarkDefective(equipmentId, defectType);
+        } catch (Exception e) {
+            lastDefectMap.remove(key); // 실패 시 쿨다운 초기화
+            log.error("자동 불량 처리 실패 equipmentId={} type={}: {}", equipmentId, defectType, e.getMessage());
+        }
     }
 
     public SensorData getLatest(String equipmentId) {

@@ -24,6 +24,12 @@ public class DefectService {
     private final WorkOrderRepository workOrderRepository;
     private final WorkOrderHistoryRepository workOrderHistoryRepository;
 
+    public List<DefectResponse> findAll() {
+        return defectRepository.findAll().stream()
+                .map(DefectResponse::from)
+                .toList();
+    }
+
     public List<DefectResponse> findByWorkOrder(Long workOrderId) {
         return defectRepository.findByWorkOrder_Id(workOrderId).stream()
                 .map(DefectResponse::from)
@@ -50,8 +56,9 @@ public class DefectService {
 
         defectRepository.save(defect);
 
-        // WorkOrder 자동 DEFECTIVE 전이
-        if (workOrder.getStatus() == WorkOrderStatus.IN_PROGRESS) {
+        // WorkOrder 자동 DEFECTIVE 전이 (IN_PROGRESS 또는 COMPLETED 상태 모두 처리)
+        if (workOrder.getStatus() == WorkOrderStatus.IN_PROGRESS
+                || workOrder.getStatus() == WorkOrderStatus.COMPLETED) {
             WorkOrderStatus fromStatus = workOrder.getStatus();
             workOrder.markDefective();
             workOrderHistoryRepository.save(WorkOrderHistory.builder()

@@ -20,9 +20,13 @@ public class DefectController {
 
     private final DefectService defectService;
 
-    @Operation(summary = "불량 목록 조회 (작업지시 기준)")
+    @Operation(summary = "불량 목록 조회 (workOrderId 미입력 시 전체 조회)")
     @GetMapping
-    public ResponseEntity<List<DefectResponse>> getByWorkOrder(@RequestParam Long workOrderId) {
+    public ResponseEntity<List<DefectResponse>> getDefects(
+            @RequestParam(required = false) Long workOrderId) {
+        if (workOrderId == null) {
+            return ResponseEntity.ok(defectService.findAll());
+        }
         return ResponseEntity.ok(defectService.findByWorkOrder(workOrderId));
     }
 
