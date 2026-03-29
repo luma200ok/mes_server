@@ -8,6 +8,7 @@ import com.mes.domain.equipment.EquipmentRepository;
 import com.mes.domain.workorder.dto.*;
 import com.mes.global.exception.CustomException;
 import com.mes.global.exception.ErrorCode;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -35,6 +36,17 @@ public class WorkOrderService {
     private final DefectRepository defectRepository;
 
     private final AtomicInteger workOrderSeq = new AtomicInteger(0);
+
+    /**
+     * 서버 기동 시 오늘 날짜 작업지시 수로 seq 초기화.
+     * 재시작 후 중복 번호 생성 방지.
+     */
+    @PostConstruct
+    public void initSeq() {
+        String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        long count = workOrderRepository.countByWorkOrderNoStartingWith("WO-" + today + "-");
+        workOrderSeq.set((int) count);
+    }
 
     public List<WorkOrderResponse> findAll() {
         return workOrderRepository.findAll().stream()

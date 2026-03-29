@@ -20,4 +20,6 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
     Optional<WorkOrder> findFirstByEquipment_EquipmentIdAndStatus(String equipmentId, WorkOrderStatus status);
 
     boolean existsByEquipment_EquipmentIdAndStatusIn(String equipmentId, List<WorkOrderStatus> statuses);
+
+    long countByWorkOrderNoStartingWith(String prefix);
 }
