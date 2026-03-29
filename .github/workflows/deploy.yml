@@ -109,6 +109,19 @@ jobs:
           target:   "/tmp/mes-client-dist"
           strip_components: 1
 
+      - name: Checkout (for simulator)
+        uses: actions/checkout@v4
+
+      - name: Copy simulator to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          source:   "simulator/simulate.py"
+          target:   "/home/${{ secrets.EC2_USERNAME }}/mes-server"
+          strip_components: 1
+
       - name: Blue-Green Switch & Deploy Client
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -182,4 +195,29 @@ jobs:
 
             # 현재 포트 기록
             echo $NEW_PORT > $DEPLOY_DIR/current_port
+
+            # 시뮬레이터 의존성 설치 및 systemd 서비스 등록
+            pip3 install requests --quiet
+            sudo tee /etc/systemd/system/mes-simulator.service > /dev/null << 'UNIT'
+[Unit]
+Description=MES Sensor Simulator
+After=network.target
+
+[Service]
+Type=simple
+User=${{ secrets.EC2_USERNAME }}
+WorkingDirectory=/home/${{ secrets.EC2_USERNAME }}/mes-server
+ExecStart=/usr/bin/python3 /home/${{ secrets.EC2_USERNAME }}/mes-server/simulate.py
+Restart=always
+RestartSec=5
+Environment=MES_BASE_URL=http://localhost
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+            sudo systemctl daemon-reload
+            sudo systemctl enable mes-simulator
+            sudo systemctl restart mes-simulator
+            echo "▶ 시뮬레이터 서비스 시작 완료"
+
             echo "🎉 배포 완료 (active port: $NEW_PORT)"
