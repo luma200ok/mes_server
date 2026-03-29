@@ -144,14 +144,14 @@ jobs:
 
             echo "▶ 새 인스턴스 포트: $NEW_PORT (기존: $CURRENT_PORT)"
 
-            # 새 포트로 앱 실행
-            nohup java -jar \
-              -Dspring.profiles.active=prod \
-              -DSERVER_PORT=$NEW_PORT \
-              -DDB_USERNAME=${{ secrets.DB_USERNAME }} \
-              -DDB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-              -DJWT_SECRET=${{ secrets.JWT_SECRET }} \
-              -DDISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL }} \
+            # 새 포트로 앱 실행 (환경변수로 전달 → ps aux에 비밀값 노출 방지)
+            nohup env \
+              SERVER_PORT=$NEW_PORT \
+              DB_USERNAME="${{ secrets.DB_USERNAME }}" \
+              DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+              JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              DISCORD_WEBHOOK_URL="${{ secrets.DISCORD_WEBHOOK_URL }}" \
+              java -jar -Dspring.profiles.active=prod \
               $JAR_PATH > $DEPLOY_DIR/logs/app-$NEW_PORT.log 2>&1 &
 
             # 헬스체크 (최대 60초 대기)
