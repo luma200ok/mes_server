@@ -122,6 +122,16 @@ jobs:
           target:   "/home/${{ secrets.EC2_USERNAME }}/mes-server"
           strip_components: 1
 
+      - name: Copy portfolio to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          source:   "portfolio/index.html"
+          target:   "/tmp/portfolio"
+          strip_components: 1
+
       - name: Blue-Green Switch & Deploy Client
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -209,3 +219,30 @@ jobs:
             echo "▶ 시뮬레이터 서비스 시작 완료"
 
             echo "🎉 배포 완료 (active port: $NEW_PORT)"
+
+            # ── 포트폴리오 메인 페이지 배포 ──────────────────────────────
+            sudo mkdir -p /var/www/portfolio
+            sudo cp /tmp/portfolio/index.html /var/www/portfolio/index.html
+            sudo chown -R www-data:www-data /var/www/portfolio/ 2>/dev/null || true
+            rm -rf /tmp/portfolio
+            echo "▶ 포트폴리오 페이지 배포 완료"
+
+            # ── 포트폴리오 Nginx 설정 (최초 1회만 생성) ─────────────────
+            PORTFOLIO_CONF="/etc/nginx/conf.d/portfolio.conf"
+            if [ ! -f "$PORTFOLIO_CONF" ]; then
+              sudo tee $PORTFOLIO_CONF > /dev/null <<'NGINX'
+server {
+    listen 80;
+    server_name rkqkdrnportfolio.shop www.rkqkdrnportfolio.shop;
+
+    root /var/www/portfolio;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+NGINX
+              sudo nginx -t && sudo nginx -s reload
+              echo "▶ 포트폴리오 Nginx 설정 생성 완료"
+            fi
