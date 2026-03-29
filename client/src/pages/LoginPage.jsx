@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 
@@ -32,6 +32,7 @@ export default function LoginPage() {
         <input style={styles.input} type="password" placeholder="비밀번호" value={password}
           onChange={e => setPassword(e.target.value)} />
         <button style={styles.btn} type="submit">로그인</button>
+        <p style={styles.link}>계정이 없으신가요? <Link to="/register">회원가입</Link></p>
       </form>
     </div>
   );
@@ -43,4 +44,5 @@ const styles = {
   input:   { padding:'10px', borderRadius:'4px', border:'1px solid #d9d9d9', fontSize:'14px' },
   btn:     { padding:'10px', background:'#1890ff', color:'#fff', border:'none', borderRadius:'4px', cursor:'pointer', fontSize:'14px' },
   error:   { color:'red', fontSize:'13px', margin:0 },
+  link:    { textAlign:'center', fontSize:'13px', color:'#666' },
 };
