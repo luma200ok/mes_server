@@ -192,12 +192,27 @@ public class WorkOrderService {
     }
 
     /**
-     * 센서 임계값 초과 시 자동 불량 처리.
-     * IN_PROGRESS 상태 작업지시가 없으면 조용히 return.
-     * completedQty 검증 없이 Defect qty=1 저장.
+     * 정상 센서값 수신 → 양품 수량 +1.
+     * 계획 수량 도달 시 COMPLETED 자동 전환 후 새 작업지시 생성.
      */
     @Transactional
-    public void autoMarkDefective(String equipmentId, DefectType defectType) {
+    public void incrementGoodQty(String equipmentId) {
+        workOrderRepository
+                .findFirstByEquipment_EquipmentIdAndStatus(equipmentId, WorkOrderStatus.IN_PROGRESS)
+                .ifPresent(workOrder -> {
+                    workOrder.incrementGoodQty();
+                    if (workOrder.isComplete()) {
+                        autoCompleteAndRecreate(workOrder);
+                    }
+                });
+    }
+
+    /**
+     * FAULT 센서값 수신 → 불량 수량 +1 + Defect 기록.
+     * 계획 수량 도달 시 COMPLETED 자동 전환 후 새 작업지시 생성.
+     */
+    @Transactional
+    public void incrementDefectQty(String equipmentId, DefectType defectType) {
         workOrderRepository
                 .findFirstByEquipment_EquipmentIdAndStatus(equipmentId, WorkOrderStatus.IN_PROGRESS)
                 .ifPresent(workOrder -> {
@@ -208,16 +223,34 @@ public class WorkOrderService {
                             .qty(1)
                             .note("[자동] 센서 임계값 초과 (" + defectType.name() + ")")
                             .build());
-
-                    workOrder.markDefective();
-
-                    historyRepository.save(WorkOrderHistory.builder()
-                            .workOrder(workOrder)
-                            .fromStatus(WorkOrderStatus.IN_PROGRESS)
-                            .toStatus(WorkOrderStatus.DEFECTIVE)
-                            .changedBy("SYSTEM_SENSOR")
-                            .build());
+                    workOrder.incrementDefectQty();
+                    if (workOrder.isComplete()) {
+                        autoCompleteAndRecreate(workOrder);
+                    }
                 });
+    }
+
+    private void autoCompleteAndRecreate(WorkOrder workOrder) {
+        workOrder.transitionTo(WorkOrderStatus.COMPLETED, workOrder.getGoodQty());
+        historyRepository.save(WorkOrderHistory.builder()
+                .workOrder(workOrder)
+                .fromStatus(WorkOrderStatus.IN_PROGRESS)
+                .toStatus(WorkOrderStatus.COMPLETED)
+                .changedBy("SYSTEM_AUTO")
+                .build());
+
+        // 동일 설비에 동일 계획 수량으로 즉시 새 작업지시 생성
+        workOrderRepository.save(WorkOrder.builder()
+                .workOrderNo(generateWorkOrderNo())
+                .equipment(workOrder.getEquipment())
+                .plannedQty(workOrder.getPlannedQty())
+                .build());
+    }
+
+    /** 설비에 활성(PENDING/IN_PROGRESS) 작업지시가 있는지 여부 */
+    public boolean hasActiveWorkOrder(String equipmentId) {
+        return workOrderRepository.existsByEquipment_EquipmentIdAndStatusIn(
+                equipmentId, List.of(WorkOrderStatus.PENDING, WorkOrderStatus.IN_PROGRESS));
     }
 
     private String generateWorkOrderNo() {

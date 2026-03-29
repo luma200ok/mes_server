@@ -8,8 +8,11 @@ import com.mes.domain.equipment.EquipmentStatus;
 import com.mes.domain.user.User;
 import com.mes.domain.user.UserRepository;
 import com.mes.domain.user.UserRole;
+import com.mes.domain.workorder.WorkOrderService;
+import com.mes.domain.workorder.dto.WorkOrderRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,16 +26,21 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DataInitializer implements ApplicationRunner {
 
+    @Value("${mes.workorder.auto-create.planned-qty}")
+    private int defaultPlannedQty;
+
     private final EquipmentRepository equipmentRepository;
     private final EquipmentConfigRepository equipmentConfigRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final WorkOrderService workOrderService;
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
         initAdminUser();
         initEquipments();
+        initWorkOrders();
     }
 
     private void initAdminUser() {
@@ -74,6 +82,21 @@ public class DataInitializer implements ApplicationRunner {
                     .build();
             equipmentConfigRepository.save(config);
             log.info("설비 초기화 완료: {} ({})", seed.equipmentId(), seed.name());
+        }
+    }
+
+    private void initWorkOrders() {
+        List<Equipment> equipments = equipmentRepository.findAll();
+        int created = 0;
+        for (Equipment equipment : equipments) {
+            if (!workOrderService.hasActiveWorkOrder(equipment.getEquipmentId())) {
+                workOrderService.create(new WorkOrderRequest(equipment.getEquipmentId(), defaultPlannedQty));
+                log.info("초기 작업지시 생성: {} (계획수량: {})", equipment.getEquipmentId(), defaultPlannedQty);
+                created++;
+            }
+        }
+        if (created > 0) {
+            log.info("초기 작업지시 {}건 생성 완료", created);
         }
     }
 

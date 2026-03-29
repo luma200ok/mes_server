@@ -22,7 +22,6 @@ FAULT_RATE          = float(os.getenv("FAULT_RATE",     "0.01"))    # 이상 데
 SEED                = int(os.getenv("RANDOM_SEED",      "42"))
 ADMIN_ID            = os.getenv("MES_ADMIN_ID",         "admin")
 ADMIN_PW            = os.getenv("MES_ADMIN_PW",         "admin1234")
-COMPLETE_AFTER_MIN  = int(os.getenv("COMPLETE_AFTER_MIN", "50"))    # IN_PROGRESS → COMPLETED 전환 기준 (분)
 
 EQUIPMENT_IDS = ["EQ-001", "EQ-002", "EQ-003"]
 
@@ -105,15 +104,12 @@ def fetch_work_orders():
         return []
 
 
-def change_work_order_status(wo_id: int, status: str, completed_qty: Optional[int] = None) -> bool:
+def change_work_order_status(wo_id: int, status: str) -> bool:
     """작업지시 상태 전이"""
-    body = {"status": status}
-    if completed_qty is not None:
-        body["completedQty"] = completed_qty
     try:
         resp = requests.patch(
             f"{BASE_URL}/api/work-orders/{wo_id}/status",
-            json=body,
+            json={"status": status},
             headers=auth_headers(),
             timeout=5,
         )
@@ -124,40 +120,21 @@ def change_work_order_status(wo_id: int, status: str, completed_qty: Optional[in
 
 
 def manage_work_orders():
-    """
-    PENDING → IN_PROGRESS 자동 시작
-    IN_PROGRESS → COMPLETED (COMPLETE_AFTER_MIN 분 경과 시)
-    """
+    """PENDING → IN_PROGRESS 자동 시작 (완료 처리는 서버가 자동 수행)"""
     orders = fetch_work_orders()
     if not orders:
         return
 
-    started = completed = 0
-
+    started = 0
     for wo in orders:
-        status = wo.get("status")
-        wo_id  = wo.get("id")
-        eq_id  = wo.get("equipmentId")
-
-        # PENDING → IN_PROGRESS
-        if status == "PENDING":
-            if change_work_order_status(wo_id, "IN_PROGRESS"):
+        if wo.get("status") == "PENDING":
+            eq_id = wo.get("equipmentId")
+            if change_work_order_status(wo.get("id"), "IN_PROGRESS"):
                 started += 1
                 print(f"  ▶ [{eq_id}] {wo['workOrderNo']} PENDING → IN_PROGRESS")
 
-        # IN_PROGRESS → COMPLETED (경과 시간 초과)
-        elif status == "IN_PROGRESS" and wo.get("startedAt"):
-            started_at = datetime.fromisoformat(wo["startedAt"])
-            elapsed = datetime.now() - started_at
-            if elapsed >= timedelta(minutes=COMPLETE_AFTER_MIN):
-                planned = wo.get("plannedQty", 0)
-                if change_work_order_status(wo_id, "COMPLETED", planned):
-                    completed += 1
-                    print(f"  ✅ [{eq_id}] {wo['workOrderNo']} COMPLETED "
-                          f"(가동 {int(elapsed.total_seconds() // 60)}분)")
-
-    if started or completed:
-        print(f"  [작업지시] 시작 {started}건 / 완료 {completed}건")
+    if started:
+        print(f"  [작업지시] 시작 {started}건")
 # ─────────────────────────────────────────────────
 
 
@@ -191,8 +168,7 @@ def send_data(payload: dict) -> bool:
 def main():
     rng = random.Random(SEED)
     print(f"[시뮬레이터 시작] BASE_URL={BASE_URL}, INTERVAL={INTERVAL}s, "
-          f"FAULT_RATE={FAULT_RATE*100:.1f}%, SEED={SEED}, "
-          f"COMPLETE_AFTER={COMPLETE_AFTER_MIN}min")
+          f"FAULT_RATE={FAULT_RATE*100:.1f}%, SEED={SEED}")
 
     wait_for_backend()
     login()

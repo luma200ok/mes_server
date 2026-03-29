@@ -15,10 +15,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -30,17 +28,11 @@ public class SensorService {
     @Value("${mes.sensor.ttl-seconds}")
     private long sensorTtlSeconds;
 
-    @Value("${mes.sensor.defect-cooldown-minutes}")
-    private long defectCooldownMinutes;
-
     private final RedisTemplate<String, Object> redisTemplate;
     private final EquipmentService equipmentService;
     private final DiscordWebhookService discordWebhookService;
     private final SseEmitterService sseEmitterService;
     private final WorkOrderService workOrderService;
-
-    /** equipmentId:DefectType → 마지막 불량 전환 시각 */
-    private final ConcurrentHashMap<String, Instant> lastDefectMap = new ConcurrentHashMap<>();
 
     /**
      * 센서 데이터 수신 — Redis 저장 + SSE 브로드캐스트만 수행.
@@ -67,6 +59,12 @@ public class SensorService {
         sseEmitterService.broadcast(request.equipmentId(), sensorData);
     }
 
+    /**
+     * 임계값 판정 + 작업지시 수량 카운팅.
+     * 센서 1회 수신 = 생산 1단위.
+     * 하나라도 임계값 초과 → 불량 수량 +1 (첫 번째 초과 타입으로 Defect 저장)
+     * 모두 정상 → 양품 수량 +1
+     */
     private void checkThresholds(SensorData data) {
         EquipmentConfigResponse config;
         try {
@@ -74,38 +72,33 @@ public class SensorService {
         } catch (CustomException e) {
             return; // 설정 없으면 임계값 검사 스킵
         }
+
+        DefectType faultType = null;
+
         if (data.getTemperature() > config.maxTemperature()) {
             data.setStatus("FAULT");
             discordWebhookService.sendAlert(data.getEquipmentId(), "온도",
                     data.getTemperature(), config.maxTemperature());
-            triggerAutoDefect(data.getEquipmentId(), DefectType.TEMPERATURE);
+            if (faultType == null) faultType = DefectType.TEMPERATURE;
         }
         if (data.getVibration() > config.maxVibration()) {
             data.setStatus("FAULT");
             discordWebhookService.sendAlert(data.getEquipmentId(), "진동",
                     data.getVibration(), config.maxVibration());
-            triggerAutoDefect(data.getEquipmentId(), DefectType.VIBRATION);
+            if (faultType == null) faultType = DefectType.VIBRATION;
         }
         if (data.getRpm() > config.maxRpm()) {
             data.setStatus("FAULT");
             discordWebhookService.sendAlert(data.getEquipmentId(), "RPM",
                     data.getRpm(), config.maxRpm());
-            triggerAutoDefect(data.getEquipmentId(), DefectType.RPM);
+            if (faultType == null) faultType = DefectType.RPM;
         }
-    }
 
-    private void triggerAutoDefect(String equipmentId, DefectType defectType) {
-        String key = equipmentId + ":" + defectType.name();
-        Instant last = lastDefectMap.get(key);
-        if (last != null && Duration.between(last, Instant.now()).toMinutes() < defectCooldownMinutes) {
-            return; // 쿨다운 중 — 스킵
-        }
-        lastDefectMap.put(key, Instant.now());
-        try {
-            workOrderService.autoMarkDefective(equipmentId, defectType);
-        } catch (Exception e) {
-            lastDefectMap.remove(key); // 실패 시 쿨다운 초기화
-            log.error("자동 불량 처리 실패 equipmentId={} type={}: {}", equipmentId, defectType, e.getMessage());
+        // 센서 1회 = 1단위 카운팅
+        if (faultType != null) {
+            workOrderService.incrementDefectQty(data.getEquipmentId(), faultType);
+        } else {
+            workOrderService.incrementGoodQty(data.getEquipmentId());
         }
     }
 

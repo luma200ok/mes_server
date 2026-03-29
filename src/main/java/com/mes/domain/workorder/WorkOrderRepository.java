@@ -16,5 +16,8 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
 
     long countByEquipment_EquipmentIdAndStatus(String equipmentId, WorkOrderStatus status);
 
+    @EntityGraph(attributePaths = "equipment")
     Optional<WorkOrder> findFirstByEquipment_EquipmentIdAndStatus(String equipmentId, WorkOrderStatus status);
+
+    boolean existsByEquipment_EquipmentIdAndStatusIn(String equipmentId, List<WorkOrderStatus> statuses);
 }

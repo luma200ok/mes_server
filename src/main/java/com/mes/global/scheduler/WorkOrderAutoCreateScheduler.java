@@ -26,9 +26,14 @@ public class WorkOrderAutoCreateScheduler {
         log.info("[작업지시 자동 생성] 설비 {}개 × {}개 = 총 {}건 생성 시작",
                 equipments.size(), plannedQty, equipments.size() * plannedQty);
 
-        int success = 0;
+        int success = 0, skipped = 0;
         for (var equipment : equipments) {
             try {
+                // 이미 활성(PENDING/IN_PROGRESS) 작업지시가 있으면 생성 스킵
+                if (workOrderService.hasActiveWorkOrder(equipment.getEquipmentId())) {
+                    skipped++;
+                    continue;
+                }
                 workOrderService.create(new WorkOrderRequest(equipment.getEquipmentId(), plannedQty));
                 success++;
             } catch (Exception e) {
@@ -36,6 +41,6 @@ public class WorkOrderAutoCreateScheduler {
             }
         }
 
-        log.info("[작업지시 자동 생성] 완료 {}/{}", success, equipments.size());
+        log.info("[작업지시 자동 생성] 생성 {}건 / 스킵 {}건", success, skipped);
     }
 }

@@ -36,6 +36,12 @@ public class WorkOrder {
 
     private Integer completedQty;
 
+    @Column(nullable = false)
+    private int goodQty = 0;
+
+    @Column(nullable = false)
+    private int defectQty = 0;
+
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;
 
@@ -82,5 +88,18 @@ public class WorkOrder {
                 this.completedAt = LocalDateTime.now();
             }
         }
+    }
+
+    public void incrementGoodQty() {
+        this.goodQty++;
+    }
+
+    public void incrementDefectQty() {
+        this.defectQty++;
+    }
+
+    /** 양품 + 불량이 계획 수량에 도달했는지 여부 */
+    public boolean isComplete() {
+        return this.goodQty + this.defectQty >= this.plannedQty;
     }
 }

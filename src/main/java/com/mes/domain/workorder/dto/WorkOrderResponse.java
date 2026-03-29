@@ -12,6 +12,8 @@ public record WorkOrderResponse(
         WorkOrderStatus status,
         Integer plannedQty,
         Integer completedQty,
+        int goodQty,
+        int defectQty,
         LocalDateTime startedAt,
         LocalDateTime completedAt,
         LocalDateTime createdAt
@@ -24,6 +26,8 @@ public record WorkOrderResponse(
                 wo.getStatus(),
                 wo.getPlannedQty(),
                 wo.getCompletedQty(),
+                wo.getGoodQty(),
+                wo.getDefectQty(),
                 wo.getStartedAt(),
                 wo.getCompletedAt(),
                 wo.getCreatedAt()

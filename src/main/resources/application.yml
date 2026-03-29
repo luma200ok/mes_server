@@ -42,8 +42,6 @@ mes:
     ttl-seconds: ${MES_SENSOR_TTL_SECONDS:60}
     # Redis→MySQL 집계 주기 (ms)
     aggregation-delay-ms: ${MES_SENSOR_AGGREGATION_DELAY_MS:60000}
-    # 동일 설비·유형 자동불량 재발생 억제 시간 (분)
-    defect-cooldown-minutes: ${MES_SENSOR_DEFECT_COOLDOWN_MINUTES:1}
   sse:
     # SSE 연결 타임아웃 (ms) — 기본 30분
     timeout-ms: ${MES_SSE_TIMEOUT_MS:1800000}
