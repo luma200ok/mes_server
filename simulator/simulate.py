@@ -1,10 +1,12 @@
 """
 MES 센서 데이터 시뮬레이터
-- 설비 3대 (EQ-001, EQ-002, EQ-003)
+- 설비 목록 + 임계값을 서버 API에서 동적으로 로드
+- 설비가 추가/변경되어도 시뮬레이터 코드 수정 불필요
+- NORMAL 범위: 임계값의 70~90%
+- FAULT  범위: 임계값의 105~120%
 - 3초마다 POST /api/sensor/data
-- 1% 확률로 임계값 초과 이상 데이터 발생
+- FAULT_RATE(기본 1%) 확률로 이상 데이터 발생
 - PENDING 작업지시 자동 IN_PROGRESS 전환
-- IN_PROGRESS 작업지시 일정 시간 후 COMPLETED 전환
 - RANDOM_SEED 환경변수로 재현 가능
 """
 
@@ -12,32 +14,20 @@ import os
 import time
 import random
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 # ── 설정 ──────────────────────────────────────────
-BASE_URL            = os.getenv("MES_BASE_URL",         "http://localhost:8080")
-INTERVAL            = int(os.getenv("SENSOR_INTERVAL",  "3"))       # 센서 전송 주기 (초)
-FAULT_RATE          = float(os.getenv("FAULT_RATE",     "0.01"))    # 이상 데이터 비율 (1%)
-SEED                = int(os.getenv("RANDOM_SEED",      "42"))
-ADMIN_ID            = os.getenv("MES_ADMIN_ID",         "admin")
-ADMIN_PW            = os.getenv("MES_ADMIN_PW",         "admin1234")
+BASE_URL   = os.getenv("MES_BASE_URL",        "http://localhost:8080")
+INTERVAL   = int(os.getenv("SENSOR_INTERVAL", "3"))       # 센서 전송 주기 (초)
+FAULT_RATE = float(os.getenv("FAULT_RATE",    "0.01"))    # 이상 데이터 비율 (1%)
+SEED       = int(os.getenv("RANDOM_SEED",     "42"))
+ADMIN_ID   = os.getenv("MES_ADMIN_ID",        "admin")
+ADMIN_PW   = os.getenv("MES_ADMIN_PW",        "admin1234")
 
-EQUIPMENT_IDS = ["EQ-001", "EQ-002", "EQ-003"]
-
-# 정상 범위
-NORMAL = {
-    "EQ-001": {"temp": (60, 80),  "vibration": (1.0, 4.0), "rpm": (1500, 2800)},
-    "EQ-002": {"temp": (55, 75),  "vibration": (0.8, 3.8), "rpm": (1400, 2600)},
-    "EQ-003": {"temp": (50, 70),  "vibration": (0.5, 3.0), "rpm": (1200, 2300)},
-}
-
-# 임계값 초과 범위 (이상 데이터)
-FAULT = {
-    "EQ-001": {"temp": (87, 100), "vibration": (5.5, 8.0), "rpm": (3100, 3800)},
-    "EQ-002": {"temp": (83, 95),  "vibration": (5.0, 7.5), "rpm": (2900, 3500)},
-    "EQ-003": {"temp": (78, 90),  "vibration": (4.0, 6.5), "rpm": (2600, 3200)},
-}
+# 임계값 대비 정상/이상 범위 비율
+NORMAL_RATIO = (0.70, 0.90)   # 임계값의 70~90% → 정상
+FAULT_RATIO  = (1.05, 1.20)   # 임계값의 105~120% → 이상
 # ─────────────────────────────────────────────────
 
 
@@ -54,7 +44,7 @@ def login() -> bool:
         )
         if resp.status_code == 200:
             _token = resp.json().get("token")
-            print(f"[인증] 로그인 성공 (admin)")
+            print(f"[인증] 로그인 성공 ({ADMIN_ID})")
             return True
         print(f"[인증] 로그인 실패 status={resp.status_code}")
         return False
@@ -74,13 +64,75 @@ def wait_for_backend(retry_interval: int = 3):
     attempt = 1
     while True:
         try:
-            resp = requests.get(f"{BASE_URL}/api/auth/login", timeout=3)
+            requests.get(f"{BASE_URL}/api/auth/login", timeout=3)
             print(f"[대기] 백엔드 준비 완료 (시도 {attempt}회)")
             return
         except requests.exceptions.RequestException:
             print(f"  [{attempt}] 백엔드 미응답, {retry_interval}초 후 재시도...")
             attempt += 1
             time.sleep(retry_interval)
+# ─────────────────────────────────────────────────
+
+
+# ── 설비 설정 동적 로드 ───────────────────────────
+def load_equipment_ranges():
+    """
+    서버 API에서 설비 목록 + 임계값을 로드하여 NORMAL/FAULT 범위를 동적 생성.
+    설비가 추가되거나 임계값이 변경되면 재호출로 즉시 반영.
+
+    반환:
+        equipment_ids: 설비 ID 목록
+        normal_ranges: {equipmentId: {temp, vibration, rpm}}
+        fault_ranges:  {equipmentId: {temp, vibration, rpm}}
+    """
+    try:
+        resp = requests.get(f"{BASE_URL}/api/equipment", headers=auth_headers(), timeout=5)
+        if resp.status_code != 200:
+            print(f"[설비 로드] 설비 목록 조회 실패 status={resp.status_code}")
+            return None, None, None
+
+        equipments = resp.json()
+        equipment_ids = [eq["equipmentId"] for eq in equipments]
+
+        normal_ranges = {}
+        fault_ranges  = {}
+
+        for eq in equipments:
+            eq_id = eq["equipmentId"]
+            cfg_resp = requests.get(
+                f"{BASE_URL}/api/equipment-config/{eq_id}",
+                headers=auth_headers(),
+                timeout=5,
+            )
+            if cfg_resp.status_code != 200:
+                print(f"  [설비 로드] {eq_id} 임계값 없음, 스킵")
+                equipment_ids.remove(eq_id)
+                continue
+
+            cfg = cfg_resp.json()
+            max_temp      = cfg["maxTemperature"]
+            max_vibration = cfg["maxVibration"]
+            max_rpm       = cfg["maxRpm"]
+
+            normal_ranges[eq_id] = {
+                "temp":      (max_temp      * NORMAL_RATIO[0], max_temp      * NORMAL_RATIO[1]),
+                "vibration": (max_vibration * NORMAL_RATIO[0], max_vibration * NORMAL_RATIO[1]),
+                "rpm":       (max_rpm       * NORMAL_RATIO[0], max_rpm       * NORMAL_RATIO[1]),
+            }
+            fault_ranges[eq_id] = {
+                "temp":      (max_temp      * FAULT_RATIO[0], max_temp      * FAULT_RATIO[1]),
+                "vibration": (max_vibration * FAULT_RATIO[0], max_vibration * FAULT_RATIO[1]),
+                "rpm":       (max_rpm       * FAULT_RATIO[0], max_rpm       * FAULT_RATIO[1]),
+            }
+            print(f"  ✅ {eq_id} ({eq['name']}) — "
+                  f"temp≤{max_temp} / vib≤{max_vibration} / rpm≤{max_rpm}")
+
+        print(f"[설비 로드] {len(equipment_ids)}대 로드 완료")
+        return equipment_ids, normal_ranges, fault_ranges
+
+    except Exception as e:
+        print(f"[설비 로드] 오류: {e}")
+        return None, None, None
 # ─────────────────────────────────────────────────
 
 
@@ -139,14 +191,14 @@ def manage_work_orders():
 
 
 # ── 센서 데이터 ────────────────────────────────────
-def generate_data(equipment_id: str, rng: random.Random):
+def generate_data(equipment_id: str, rng: random.Random, normal_ranges: dict, fault_ranges: dict):
     is_fault = rng.random() < FAULT_RATE
-    ranges = FAULT[equipment_id] if is_fault else NORMAL[equipment_id]
-    payload = {
+    ranges   = fault_ranges[equipment_id] if is_fault else normal_ranges[equipment_id]
+    payload  = {
         "equipmentId": equipment_id,
-        "temperature": round(rng.uniform(*ranges["temp"]), 2),
+        "temperature": round(rng.uniform(*ranges["temp"]),      2),
         "vibration":   round(rng.uniform(*ranges["vibration"]), 2),
-        "rpm":         round(rng.uniform(*ranges["rpm"]), 2),
+        "rpm":         round(rng.uniform(*ranges["rpm"]),       2),
     }
     return payload, is_fault
 
@@ -173,11 +225,21 @@ def main():
     wait_for_backend()
     login()
 
+    # 설비 설정 로드
+    print("[설비 로드] 설비 목록 및 임계값 로드 중...")
+    equipment_ids, normal_ranges, fault_ranges = load_equipment_ranges()
+    if not equipment_ids:
+        print("[오류] 설비 로드 실패. 시뮬레이터를 종료합니다.")
+        return
+
     print("-" * 60)
 
     cycle = 0
     # 작업지시 관리 주기: 센서 10사이클마다 1회 (약 30초)
     WO_MANAGE_EVERY = 10
+    # 설비 설정 재로드 주기: 100사이클마다 1회 (약 5분)
+    # 임계값 변경 시 자동 반영
+    CONFIG_RELOAD_EVERY = 100
 
     while True:
         cycle += 1
@@ -185,11 +247,11 @@ def main():
         print(f"[{timestamp}] Cycle #{cycle}")
 
         # ── 센서 데이터 전송
-        for eq_id in EQUIPMENT_IDS:
-            payload, is_fault = generate_data(eq_id, rng)
-            ok = send_data(payload)
-            send_icon  = "✅" if ok    else "❌"
-            fault_tag  = " ⚠️ FAULT" if is_fault else ""
+        for eq_id in equipment_ids:
+            payload, is_fault = generate_data(eq_id, rng, normal_ranges, fault_ranges)
+            ok        = send_data(payload)
+            send_icon = "✅" if ok       else "❌"
+            fault_tag = " ⚠️ FAULT"     if is_fault else ""
             print(f"  {send_icon} {eq_id} | "
                   f"온도={payload['temperature']}°C  "
                   f"진동={payload['vibration']}  "
@@ -200,6 +262,13 @@ def main():
         if cycle % WO_MANAGE_EVERY == 0:
             print(f"  [작업지시 점검]")
             manage_work_orders()
+
+        # ── 설비 설정 재로드 (임계값 변경 반영)
+        if cycle % CONFIG_RELOAD_EVERY == 0:
+            print("  [설비 재로드] 임계값 변경 확인 중...")
+            new_ids, new_normal, new_fault = load_equipment_ranges()
+            if new_ids:
+                equipment_ids, normal_ranges, fault_ranges = new_ids, new_normal, new_fault
 
         time.sleep(INTERVAL)
 
