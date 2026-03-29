@@ -198,7 +198,7 @@ jobs:
 
             # 시뮬레이터 의존성 설치 및 systemd 서비스 등록
             pip3 install requests --quiet
-            printf '[Unit]\nDescription=MES Sensor Simulator\nAfter=network.target\n\n[Service]\nType=simple\nUser=${{ secrets.EC2_USERNAME }}\nWorkingDirectory=/home/${{ secrets.EC2_USERNAME }}/mes-server\nExecStart=/usr/bin/python3 /home/${{ secrets.EC2_USERNAME }}/mes-server/simulate.py\nRestart=always\nRestartSec=5\nEnvironment=MES_BASE_URL=http://localhost\n\n[Install]\nWantedBy=multi-user.target\n' | sudo tee /etc/systemd/system/mes-simulator.service > /dev/null
+            printf '[Unit]\nDescription=MES Sensor Simulator\nAfter=network.target\n\n[Service]\nType=simple\nUser=${{ secrets.EC2_USERNAME }}\nWorkingDirectory=/home/${{ secrets.EC2_USERNAME }}/mes-server\nExecStart=/usr/bin/python3 /home/${{ secrets.EC2_USERNAME }}/mes-server/simulate.py\nRestart=always\nRestartSec=5\nEnvironment=MES_BASE_URL=http://localhost:%s\n\n[Install]\nWantedBy=multi-user.target\n' "$NEW_PORT" | sudo tee /etc/systemd/system/mes-simulator.service > /dev/null
             sudo systemctl daemon-reload
             sudo systemctl enable mes-simulator
             sudo systemctl restart mes-simulator
