@@ -155,9 +155,10 @@ jobs:
               java -jar -Dspring.profiles.active=prod \
               $JAR_PATH > $DEPLOY_DIR/logs/app-$NEW_PORT.log 2>&1 &
 
-            # 헬스체크 (최대 60초 대기)
+            # 헬스체크 (최대 90초 대기)
             echo "헬스체크 시작..."
-            for i in $(seq 1 20); do
+            STATUS="000"
+            for i in $(seq 1 30); do
               sleep 3
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
                 --connect-timeout 3 --max-time 5 \
@@ -166,11 +167,12 @@ jobs:
                 echo "✅ 새 인스턴스 정상 (포트: $NEW_PORT)"
                 break
               fi
-              echo "  대기 중... ($i/20)"
+              echo "  대기 중... ($i/30, status=$STATUS)"
             done
 
             if [ "$STATUS" != "200" ]; then
-              echo "❌ 헬스체크 실패 — 롤백"
+              echo "❌ 헬스체크 실패 — 앱 로그:"
+              tail -50 $DEPLOY_DIR/logs/app-$NEW_PORT.log || true
               kill $(lsof -ti:$NEW_PORT) 2>/dev/null || true
               exit 1
             fi
