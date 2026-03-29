@@ -90,12 +90,12 @@ public class WorkOrder {
         }
     }
 
-    public void incrementGoodQty() {
-        this.goodQty++;
+    public void addGoodQty(int qty) {
+        this.goodQty += qty;
     }
 
-    public void incrementDefectQty() {
-        this.defectQty++;
+    public void addDefectQty(int qty) {
+        this.defectQty += qty;
     }
 
     /** 양품 + 불량이 계획 수량에 도달했는지 여부 */

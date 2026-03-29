@@ -11,6 +11,7 @@ import com.mes.global.exception.ErrorCode;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,10 +31,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Transactional(readOnly = true)
 public class WorkOrderService {
 
+    // ── Redis 키 상수 ─────────────────────────────────
+    public static final String WO_ACTIVE_PREFIX  = "wo:active:";   // 설비별 활성 WO ID
+    public static final String WO_GOOD_PREFIX    = "wo:good:";     // WO별 양품 카운터
+    public static final String WO_DEFECT_PREFIX  = "wo:defect:";   // WO별 불량 카운터
+    public static final String WO_DEFECTS_PREFIX = "wo:defects:";  // WO별 불량 타입 로그 (List)
+    // ─────────────────────────────────────────────────
+
     private final WorkOrderRepository workOrderRepository;
     private final WorkOrderHistoryRepository historyRepository;
     private final EquipmentRepository equipmentRepository;
     private final DefectRepository defectRepository;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     private final AtomicInteger workOrderSeq = new AtomicInteger(0);
 
@@ -84,6 +93,14 @@ public class WorkOrderService {
                 .toStatus(request.status())
                 .changedBy(changedBy)
                 .build());
+
+        // Redis active 키 갱신
+        String equipmentId = workOrder.getEquipment().getEquipmentId();
+        if (request.status() == WorkOrderStatus.IN_PROGRESS) {
+            redisTemplate.opsForValue().set(WO_ACTIVE_PREFIX + equipmentId, workOrder.getId());
+        } else if (request.status() == WorkOrderStatus.COMPLETED || request.status() == WorkOrderStatus.DEFECTIVE) {
+            redisTemplate.delete(WO_ACTIVE_PREFIX + equipmentId);
+        }
 
         return WorkOrderResponse.from(workOrder);
     }
@@ -204,45 +221,92 @@ public class WorkOrderService {
     }
 
     /**
-     * 정상 센서값 수신 → 양품 수량 +1.
-     * 계획 수량 도달 시 COMPLETED 자동 전환 후 새 작업지시 생성.
+     * 정상 센서값 수신 → Redis goodQty 카운터 +1 (DB 접근 없음).
      */
-    @Transactional
-    public void incrementGoodQty(String equipmentId) {
-        workOrderRepository
-                .findFirstByEquipment_EquipmentIdAndStatus(equipmentId, WorkOrderStatus.IN_PROGRESS)
-                .ifPresent(workOrder -> {
-                    workOrder.incrementGoodQty();
-                    if (workOrder.isComplete()) {
-                        autoCompleteAndRecreate(workOrder);
-                    }
-                });
+    public void recordGoodCount(String equipmentId) {
+        Long woId = getActiveWoId(equipmentId);
+        if (woId == null) return;
+        redisTemplate.opsForValue().increment(WO_GOOD_PREFIX + woId);
     }
 
     /**
-     * FAULT 센서값 수신 → 불량 수량 +1 + Defect 기록.
-     * 계획 수량 도달 시 COMPLETED 자동 전환 후 새 작업지시 생성.
+     * FAULT 센서값 수신 → Redis defectQty 카운터 +1 + 불량 타입 기록 (DB 접근 없음).
+     */
+    public void recordDefectCount(String equipmentId, DefectType defectType) {
+        Long woId = getActiveWoId(equipmentId);
+        if (woId == null) return;
+        redisTemplate.opsForValue().increment(WO_DEFECT_PREFIX + woId);
+        redisTemplate.opsForList().leftPush(WO_DEFECTS_PREFIX + woId, defectType.name());
+    }
+
+    /**
+     * 활성(IN_PROGRESS) 작업지시 ID 조회.
+     * Redis 캐시 우선, 미스 시 DB 폴백 후 캐싱.
+     */
+    public Long getActiveWoId(String equipmentId) {
+        Object cached = redisTemplate.opsForValue().get(WO_ACTIVE_PREFIX + equipmentId);
+        if (cached != null) {
+            return ((Number) cached).longValue();
+        }
+        // DB 폴백 (캐시 미스 시에만 쿼리)
+        return workOrderRepository
+                .findFirstByEquipment_EquipmentIdAndStatus(equipmentId, WorkOrderStatus.IN_PROGRESS)
+                .map(wo -> {
+                    redisTemplate.opsForValue().set(WO_ACTIVE_PREFIX + equipmentId, wo.getId());
+                    return wo.getId();
+                })
+                .orElse(null);
+    }
+
+    /**
+     * Redis 카운터 → DB 반영 (스케줄러 호출용).
+     * goodQty / defectQty 누적 반영 후 계획 수량 달성 시 COMPLETED 자동 전환 + 새 WO 생성.
      */
     @Transactional
-    public void incrementDefectQty(String equipmentId, DefectType defectType) {
-        workOrderRepository
-                .findFirstByEquipment_EquipmentIdAndStatus(equipmentId, WorkOrderStatus.IN_PROGRESS)
-                .ifPresent(workOrder -> {
-                    defectRepository.save(Defect.builder()
-                            .workOrder(workOrder)
-                            .equipment(workOrder.getEquipment())
-                            .defectType(defectType)
-                            .qty(1)
-                            .note("[자동] 센서 임계값 초과 (" + defectType.name() + ")")
-                            .build());
-                    workOrder.incrementDefectQty();
-                    if (workOrder.isComplete()) {
-                        autoCompleteAndRecreate(workOrder);
-                    }
-                });
+    public void flushQtyCounts(Long woId) {
+        int goodIncr   = popCounter(WO_GOOD_PREFIX   + woId);
+        int defectIncr = popCounter(WO_DEFECT_PREFIX + woId);
+        List<String> defectTypeNames = popDefectTypeList(WO_DEFECTS_PREFIX + woId);
+
+        if (goodIncr == 0 && defectIncr == 0) return;
+
+        workOrderRepository.findById(woId).ifPresent(workOrder -> {
+            // 불량 타입별 Defect 레코드 저장
+            for (String typeName : defectTypeNames) {
+                DefectType dt = DefectType.valueOf(typeName);
+                defectRepository.save(Defect.builder()
+                        .workOrder(workOrder)
+                        .equipment(workOrder.getEquipment())
+                        .defectType(dt)
+                        .qty(1)
+                        .note("[자동] 센서 임계값 초과 (" + dt.name() + ")")
+                        .build());
+            }
+            // 수량 일괄 반영
+            workOrder.addGoodQty(goodIncr);
+            workOrder.addDefectQty(defectIncr);
+
+            if (workOrder.isComplete()) {
+                autoCompleteAndRecreate(workOrder);
+            }
+        });
+    }
+
+    private int popCounter(String key) {
+        Object val = redisTemplate.opsForValue().getAndDelete(key);
+        return val != null ? ((Number) val).intValue() : 0;
+    }
+
+    private List<String> popDefectTypeList(String key) {
+        List<Object> vals = redisTemplate.opsForList().range(key, 0, -1);
+        redisTemplate.delete(key);
+        if (vals == null) return List.of();
+        return vals.stream().map(Object::toString).toList();
     }
 
     private void autoCompleteAndRecreate(WorkOrder workOrder) {
+        String equipmentId = workOrder.getEquipment().getEquipmentId();
+
         workOrder.transitionTo(WorkOrderStatus.COMPLETED, workOrder.getGoodQty());
         historyRepository.save(WorkOrderHistory.builder()
                 .workOrder(workOrder)
@@ -250,6 +314,9 @@ public class WorkOrderService {
                 .toStatus(WorkOrderStatus.COMPLETED)
                 .changedBy("SYSTEM_AUTO")
                 .build());
+
+        // active 키 삭제 (새 WO는 PENDING 상태)
+        redisTemplate.delete(WO_ACTIVE_PREFIX + equipmentId);
 
         // 동일 설비에 동일 계획 수량으로 즉시 새 작업지시 생성
         workOrderRepository.save(WorkOrder.builder()

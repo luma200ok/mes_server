@@ -94,11 +94,11 @@ public class SensorService {
             if (faultType == null) faultType = DefectType.RPM;
         }
 
-        // 센서 1회 = 1단위 카운팅
+        // 센서 1회 = 1단위 → Redis 카운터 증가 (DB 접근 없음)
         if (faultType != null) {
-            workOrderService.incrementDefectQty(data.getEquipmentId(), faultType);
+            workOrderService.recordDefectCount(data.getEquipmentId(), faultType);
         } else {
-            workOrderService.incrementGoodQty(data.getEquipmentId());
+            workOrderService.recordGoodCount(data.getEquipmentId());
         }
     }
 
