@@ -213,3 +213,4 @@ jobs:
             echo "▶ 시뮬레이터 서비스 시작 완료"
 
             echo "🎉 배포 완료 (active port: $NEW_PORT)"
+
