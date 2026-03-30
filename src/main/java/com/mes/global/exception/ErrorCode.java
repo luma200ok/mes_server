@@ -32,6 +32,7 @@ public enum ErrorCode {
     // Defect
     DEFECT_NOT_FOUND(HttpStatus.NOT_FOUND, "D001", "불량 정보를 찾을 수 없습니다."),
     DEFECT_QTY_EXCEEDS_COMPLETED(HttpStatus.BAD_REQUEST, "D002", "불량 수량이 완료 수량을 초과합니다."),
+    DEFECT_QTY_EXCEEDS_PLANNED(HttpStatus.BAD_REQUEST, "D003", "양품 + 불량 수량이 계획 수량을 초과합니다."),
 
     // Sensor
     SENSOR_DATA_NOT_FOUND(HttpStatus.NOT_FOUND, "S001", "센서 데이터를 찾을 수 없습니다."),

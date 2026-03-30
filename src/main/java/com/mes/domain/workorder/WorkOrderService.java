@@ -282,9 +282,12 @@ public class WorkOrderService {
                         .note("[자동] 센서 임계값 초과 (" + dt.name() + ")")
                         .build());
             }
-            // 수량 일괄 반영
-            workOrder.addGoodQty(goodIncr);
-            workOrder.addDefectQty(defectIncr);
+            // 수량 일괄 반영 (계획 수량 초과 방지)
+            int remaining    = workOrder.getPlannedQty() - workOrder.getGoodQty() - workOrder.getDefectQty();
+            int cappedGood   = Math.min(goodIncr,   Math.max(0, remaining));
+            int cappedDefect = Math.min(defectIncr, Math.max(0, remaining - cappedGood));
+            workOrder.addGoodQty(cappedGood);
+            workOrder.addDefectQty(cappedDefect);
 
             if (workOrder.isComplete()) {
                 autoCompleteAndRecreate(workOrder);

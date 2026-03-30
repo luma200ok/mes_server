@@ -42,8 +42,8 @@ public class DefectService {
                 .orElseThrow(() -> new CustomException(ErrorCode.WORK_ORDER_NOT_FOUND));
 
         int totalDefect = defectRepository.sumQtyByWorkOrderId(workOrder.getId()) + request.qty();
-        if (workOrder.getCompletedQty() != null && totalDefect > workOrder.getCompletedQty()) {
-            throw new CustomException(ErrorCode.DEFECT_QTY_EXCEEDS_COMPLETED);
+        if (workOrder.getGoodQty() + totalDefect > workOrder.getPlannedQty()) {
+            throw new CustomException(ErrorCode.DEFECT_QTY_EXCEEDS_PLANNED);
         }
 
         Defect defect = Defect.builder()
