@@ -6,8 +6,13 @@
 >
 > Server-Sent Events(SSE) 기반 실시간 푸시, Redis 카운터 기반 1분 단위 배치 집계, Discord 알림까지 실제 운영 환경을 고려한 아키텍처를 구축했습니다.
 
+🔗 실제 서비스 접속해 보기: `https://mes.rkqkdrnportfolio.shop`
 
-🔗 **Swagger API**: `http://localhost:8080/swagger-ui.html`
+🔗 **Swagger API**: `https://mes.rkqkdrnportfolio.shop/swagger-ui.html`
+
+🔗 Discord:https://discord.gg/a9VhVFbqnR
+
+
 
 🧪 **테스트 계정**
 ┣ ID: admin
@@ -47,7 +52,7 @@
                   └────┬────┘
          ┌─────────────┴─────────────┐
     ┌────▼────┐                 ┌────▼────┐
-    │ :8080   │  Blue instance  │ :8081   │  Green instance
+    │ :8085   │  Blue instance  │ :8086   │  Green instance
     │ Spring  │◄──── 전환 ─────►│ Spring  │
     │  Boot   │                 │  Boot   │
     └────┬────┘                 └─────────┘
@@ -190,7 +195,7 @@ Python Simulator ──POST /api/sensor/data──► Spring Boot (인증 불필
 |--------|-----|------|------|
 | GET | `/api/sse/subscribe` | ❌ | SSE 실시간 구독 |
 
-> 📄 **Swagger UI:** `http://localhost:8080/swagger-ui.html`
+> 📄 **Swagger UI:** `https://www.rkqkdrnportfolio.shop/swagger-ui.html`
 
 <br>
 
@@ -243,7 +248,7 @@ python simulate.py
 
 | 환경변수 | 기본값 | 설명 |
 |---------|--------|------|
-| `MES_BASE_URL` | `http://localhost:8080` | 서버 URL |
+| `MES_BASE_URL` | `https://www.rkqkdrnportfolio.shop/` | 서버 URL |
 | `SENSOR_INTERVAL` | `3` | 전송 주기 (초) |
 | `FAULT_RATE` | `0.01` | 이상 데이터 비율 (0.0 ~ 1.0) |
 | `RANDOM_SEED` | `42` | 난수 시드 (재현용) |
@@ -259,8 +264,10 @@ python simulate.py
 | INVALID_STATUS_TRANSITION | 400 | 허용되지 않는 상태 전이 |
 | SENSOR_DATA_NOT_FOUND | 404 | 센서 데이터 없음 |
 | INVALID_INPUT_VALUE | 400 | 입력값 오류 |
+| DEFECT_NOT_FOUND | 404 | 불량 정보 없음 |
+| DEFECT_QTY_EXCEEDS_PLANNED | 400 | 양품 + 불량 수량이 계획 수량 초과 |
 | INTERNAL_SERVER_ERROR | 500 | 서버 내부 오류 |
 
 ---
 
-최근 업데이트 2026.03.29 — README V1.1.0
+최근 업데이트 2026.03.31 — README V1.2.0
