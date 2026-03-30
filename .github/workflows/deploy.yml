@@ -3,8 +3,12 @@ name: MES Server CI/CD
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'portfolio/**'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - 'portfolio/**'
 
 jobs:
   # ── 1. 빌드 & 테스트 ──────────────────────────────────────────────
