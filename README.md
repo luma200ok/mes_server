@@ -6,9 +6,9 @@
 >
 > Server-Sent Events(SSE) 기반 실시간 푸시, Redis 카운터 기반 1분 단위 배치 집계, Discord 알림까지 실제 운영 환경을 고려한 아키텍처를 구축했습니다.
 
-🔗 실제 서비스 접속해 보기: `https://mes.rkqkdrnportfolio.shop`
+🔗 실제 서비스 접속해 보기: [https://mes.rkqkdrnportfolio.shop](https://mes.rkqkdrnportfolio.shop)
 
-🔗 **Swagger API**: `https://mes.rkqkdrnportfolio.shop/swagger-ui.html`
+🔗 **Swagger API**: [https://mes.rkqkdrnportfolio.shop/swagger-ui.html](https://mes.rkqkdrnportfolio.shop/swagger-ui.html)
 
 🔗 Discord:https://discord.gg/a9VhVFbqnR
 
