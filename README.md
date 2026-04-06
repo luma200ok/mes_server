@@ -32,13 +32,14 @@
 ## 🛠️ Tech Stack & Architecture
 
 ### Tech Stack
-* **Backend:** Java 21, Spring Boot 3.4, Spring Data JPA, Querydsl 5, Spring Security 6 + JWT
-* **Database & Cache:** MySQL 8, Redis
+* **Backend:** Java 21, Spring Boot 3.4.1, Spring Data JPA, Querydsl 5.1.0, Spring Security 6 + JWT (jjwt 0.12.6)
+* **Database & Cache:** MySQL 8, Redis 7
+* **Frontend:** React 19, Vite 8, React Router 7, React Query 5
 * **Realtime:** Server-Sent Events (SSE)
-* **Export:** Apache POI (Excel), OpenCSV
+* **Export:** Apache POI 5.3.0 (Excel), OpenCSV 5.9
 * **Notification:** Discord Webhook
-* **Docs:** Springdoc OpenAPI (Swagger UI)
-* **CI/CD:** GitHub Actions + EC2 Blue-Green 무중단 배포
+* **Docs:** Springdoc OpenAPI 2.8.3 (Swagger UI)
+* **CI/CD:** GitHub Actions + EC2 Blue-Green 무중단 배포 (Spring Boot + React 동시 배포, systemd 시뮬레이터 자동 재시작)
 
 ### System Architecture
 
@@ -161,6 +162,7 @@ Python Simulator ──POST /api/sensor/data──► Spring Boot (인증 불필
 | Method | URI | 인증 | 설명 |
 |--------|-----|------|------|
 | GET | `/api/equipment` | ✅ | 설비 목록 조회 |
+| GET | `/api/equipment/{equipmentId}` | ✅ | 설비 단건 조회 |
 | POST | `/api/equipment` | ✅ | 설비 등록 |
 | DELETE | `/api/equipment/{equipmentId}` | ✅ | 설비 삭제 (소프트 딜리트) |
 | GET | `/api/equipment-config/{equipmentId}` | ✅ | 설비 임계값 조회 |
@@ -186,16 +188,30 @@ Python Simulator ──POST /api/sensor/data──► Spring Boot (인증 불필
 | Method | URI | 인증 | 설명 |
 |--------|-----|------|------|
 | GET | `/api/dashboard/oee` | ✅ | OEE 통계 조회 |
-| GET | `/api/dashboard/sensor-history` | ✅ | 센서 이력 페이징 조회 |
+| GET | `/api/dashboard/sensor-history` | ✅ | 센서 이력 기간 조회 |
 | GET | `/api/dashboard/export/excel` | ✅ | Excel 내보내기 |
 | GET | `/api/dashboard/export/csv` | ✅ | CSV 내보내기 |
+
+### 알람
+| Method | URI | 인증 | 설명 |
+|--------|-----|------|------|
+| GET | `/api/alarms/equipment/{equipmentId}` | ✅ | 설비별 알람 이력 조회 |
+| GET | `/api/alarms` | ✅ | 기간별 알람 이력 조회 (`from`, `to` 쿼리 파라미터) |
+| GET | `/api/alarms/equipment/{equipmentId}/count` | ✅ | 설비 최근 알람 횟수 조회 |
+
+### 사용자 관리 (ADMIN 전용)
+| Method | URI | 인증 | 설명 |
+|--------|-----|------|------|
+| POST | `/api/users` | ✅ | 사용자 등록 |
+| GET | `/api/users` | ✅ | 전체 사용자 조회 |
+| DELETE | `/api/users/{userId}` | ✅ | 사용자 삭제 |
 
 ### 실시간
 | Method | URI | 인증 | 설명 |
 |--------|-----|------|------|
 | GET | `/api/sse/subscribe` | ❌ | SSE 실시간 구독 |
 
-> 📄 **Swagger UI:** `https://www.rkqkdrnportfolio.shop/swagger-ui.html`
+> 📄 **Swagger UI:** `https://mes.rkqkdrnportfolio.shop/swagger-ui.html`
 
 <br>
 
@@ -208,15 +224,7 @@ Python Simulator ──POST /api/sensor/data──► Spring Boot (인증 불필
 
 ### Docker로 인프라 실행
 ```bash
-# MySQL
-docker run -d --name mes-mysql \
-  -e MYSQL_ROOT_PASSWORD=root \
-  -e MYSQL_DATABASE=mes_db \
-  -p 3306:3306 mysql:8.0
-
-# Redis
-docker run -d --name mes-redis \
-  -p 6379:6379 redis:7
+docker-compose up -d
 ```
 
 ### 환경변수
@@ -250,7 +258,7 @@ python simulate.py
 |---------|--------|------|
 | `MES_BASE_URL` | `https://www.rkqkdrnportfolio.shop/` | 서버 URL |
 | `SENSOR_INTERVAL` | `3` | 전송 주기 (초) |
-| `FAULT_RATE` | `0.01` | 이상 데이터 비율 (0.0 ~ 1.0) |
+| `FAULT_RATE` | `0.001` | 이상 데이터 비율 (0.0 ~ 1.0) |
 | `RANDOM_SEED` | `42` | 난수 시드 (재현용) |
 
 <br>
@@ -270,4 +278,4 @@ python simulate.py
 
 ---
 
-최근 업데이트 2026.03.31 — README V1.2.0
+최근 업데이트 2026.04.06 — README V1.3.0
