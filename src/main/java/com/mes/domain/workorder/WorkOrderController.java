@@ -6,10 +6,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,14 +25,13 @@ public class WorkOrderController {
 
     private final WorkOrderService workOrderService;
 
-    @Operation(summary = "작업지시 목록 조회 (날짜/상태 필터 + 페이징)")
+    @Operation(summary = "작업지시 목록 조회 (날짜/상태 필터)")
     @GetMapping
-    public ResponseEntity<Page<WorkOrderResponse>> getAll(
+    public ResponseEntity<List<WorkOrderResponse>> getAll(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(required = false) WorkOrderStatus status,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(workOrderService.findFiltered(startDate, endDate, status, pageable));
+            @RequestParam(required = false) WorkOrderStatus status) {
+        return ResponseEntity.ok(workOrderService.findFiltered(startDate, endDate, status));
     }
 
     @Operation(summary = "작업지시 날짜별 그룹 조회")
