@@ -60,21 +60,22 @@ public class WorkOrderService {
         workOrderSeq.set((int) count);
     }
 
-    public List<WorkOrderResponse> findAll() {
-        return workOrderRepository.findAll().stream()
-                .map(WorkOrderResponse::from)
-                .toList();
-    }
-
     public List<WorkOrderResponse> findFiltered(LocalDate startDate, LocalDate endDate, WorkOrderStatus status) {
-        return workOrderRepository.findByDateRange(startDate, endDate, status).stream()
+        // 날짜 미지정 시 기본 30일
+        LocalDate end   = endDate   != null ? endDate   : LocalDate.now();
+        LocalDate start = startDate != null ? startDate : end.minusDays(30);
+        return workOrderRepository.findByDateRange(start, end, status).stream()
                 .map(WorkOrderResponse::from)
                 .toList();
     }
 
     public Map<String, List<WorkOrderResponse>> findGroupedByDate(LocalDate startDate, LocalDate endDate) {
-        List<WorkOrder> workOrders = workOrderRepository.findByDateRange(startDate, endDate, null);
-        // 날짜 내림차순으로 그룹핑 (최신 날짜가 앞)
+        LocalDate end   = endDate   != null ? endDate   : LocalDate.now();
+        LocalDate start = startDate != null ? startDate : end.minusDays(30);
+        if (start.isAfter(end)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        List<WorkOrder> workOrders = workOrderRepository.findByDateRange(start, end, null);
         TreeMap<String, List<WorkOrderResponse>> grouped = new TreeMap<>(java.util.Comparator.reverseOrder());
         for (WorkOrder wo : workOrders) {
             String dateKey = wo.getCreatedAt().toLocalDate().toString();
