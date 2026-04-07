@@ -33,8 +33,8 @@ export default function LoginPage() {
           onChange={e => setPassword(e.target.value)} />
         <button style={styles.btn} type="submit">로그인</button>
         <p style={styles.link}>계정이 없으신가요? <Link to="/register">회원가입</Link></p>
-        <div style={styles.testAccount}>
-          <p style={styles.testTitle}>테스트 계정</p>
+        <div style={styles.testAccount} onClick={() => { setUsername('admin'); setPassword('admin1234'); }}>
+          <p style={styles.testTitle}>테스트 계정 (클릭 시 자동 입력)</p>
           <p style={styles.testInfo}>아이디: <strong>admin</strong></p>
           <p style={styles.testInfo}>비밀번호: <strong>admin1234</strong></p>
         </div>
@@ -50,7 +50,7 @@ const styles = {
   btn:     { padding:'10px', background:'#1890ff', color:'#fff', border:'none', borderRadius:'4px', cursor:'pointer', fontSize:'14px' },
   error:   { color:'red', fontSize:'13px', margin:0 },
   link:        { textAlign:'center', fontSize:'13px', color:'#666' },
-  testAccount: { background:'#f6ffed', border:'1px solid #b7eb8f', borderRadius:'4px', padding:'12px', fontSize:'13px' },
+  testAccount: { background:'#f6ffed', border:'1px solid #b7eb8f', borderRadius:'4px', padding:'12px', fontSize:'13px', cursor:'pointer' },
   testTitle:   { margin:'0 0 6px 0', fontWeight:'bold', color:'#52c41a' },
   testInfo:    { margin:'2px 0', color:'#555' },
 };
