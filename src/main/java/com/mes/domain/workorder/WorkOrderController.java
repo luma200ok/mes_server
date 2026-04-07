@@ -6,13 +6,20 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @Tag(name = "WorkOrder", description = "작업지시 API")
 @RestController
@@ -22,10 +29,22 @@ public class WorkOrderController {
 
     private final WorkOrderService workOrderService;
 
-    @Operation(summary = "작업지시 목록 조회")
+    @Operation(summary = "작업지시 목록 조회 (날짜/상태 필터 + 페이징)")
     @GetMapping
-    public ResponseEntity<List<WorkOrderResponse>> getAll() {
-        return ResponseEntity.ok(workOrderService.findAll());
+    public ResponseEntity<Page<WorkOrderResponse>> getAll(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) WorkOrderStatus status,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(workOrderService.findFiltered(startDate, endDate, status, pageable));
+    }
+
+    @Operation(summary = "작업지시 날짜별 그룹 조회")
+    @GetMapping("/grouped")
+    public ResponseEntity<Map<String, List<WorkOrderResponse>>> getGrouped(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ResponseEntity.ok(workOrderService.findGroupedByDate(startDate, endDate));
     }
 
     @Operation(summary = "작업지시 등록")

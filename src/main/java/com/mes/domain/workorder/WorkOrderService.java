@@ -11,6 +11,8 @@ import com.mes.global.exception.ErrorCode;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.security.core.Authentication;
@@ -20,10 +22,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
@@ -61,6 +66,22 @@ public class WorkOrderService {
         return workOrderRepository.findAll().stream()
                 .map(WorkOrderResponse::from)
                 .toList();
+    }
+
+    public Page<WorkOrderResponse> findFiltered(LocalDate startDate, LocalDate endDate, WorkOrderStatus status, Pageable pageable) {
+        return workOrderRepository.search(startDate, endDate, status, pageable)
+                .map(WorkOrderResponse::from);
+    }
+
+    public Map<String, List<WorkOrderResponse>> findGroupedByDate(LocalDate startDate, LocalDate endDate) {
+        List<WorkOrder> workOrders = workOrderRepository.findByDateRange(startDate, endDate);
+        // 날짜 내림차순으로 그룹핑 (최신 날짜가 앞)
+        TreeMap<String, List<WorkOrderResponse>> grouped = new TreeMap<>(java.util.Comparator.reverseOrder());
+        for (WorkOrder wo : workOrders) {
+            String dateKey = wo.getCreatedAt().toLocalDate().toString();
+            grouped.computeIfAbsent(dateKey, k -> new ArrayList<>()).add(WorkOrderResponse.from(wo));
+        }
+        return grouped;
     }
 
     @Transactional
