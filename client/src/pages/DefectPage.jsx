@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from 'react';
-import { getDefects, createDefect } from '../api/defect';
+import { useEffect, useState } from 'react';
+import { getDefects, getDefectsByWorkOrder, getDefectSummary, createDefect } from '../api/defect';
 import { getWorkOrders } from '../api/workorder';
 
 const DEFECT_TYPES  = ['DIMENSION', 'SURFACE', 'ASSEMBLY', 'OTHER'];
@@ -12,6 +12,7 @@ export default function DefectPage() {
   const [workOrders, setWorkOrders] = useState([]);
   const [selectedWo, setSelectedWo] = useState('');
   const [list, setList]             = useState([]);
+  const [summary, setSummary]       = useState({ total: 0, byType: { DIMENSION: 0, SURFACE: 0, ASSEMBLY: 0, OTHER: 0 } });
   const [form, setForm]             = useState(empty);
   const [showForm, setShowForm]     = useState(false);
   const [error, setError]           = useState('');
@@ -21,7 +22,8 @@ export default function DefectPage() {
     const tryLoad = () => {
       Promise.all([
         getWorkOrders().then(r => setWorkOrders(r.data)),
-        getDefects(null).then(r => setList(r.data)),
+        loadDefects(null),
+        loadSummary(null),
       ]).catch(() => { timer = setTimeout(tryLoad, 3000); });
     };
     tryLoad();
@@ -29,14 +31,37 @@ export default function DefectPage() {
   }, []);
 
   const loadDefects = (woId) => {
-    getDefects(woId || null).then(r => setList(r.data)).catch(() => setList([]));
+    if (woId) {
+      return getDefectsByWorkOrder(woId)
+        .then(r => setList(r.data))
+        .catch(() => setList([]));
+    }
+    return getDefects({ size: 100 })
+      .then(r => setList(r.data.content))
+      .catch(() => setList([]));
+  };
+
+  const loadSummary = (woId) => {
+    const params = {};
+    return getDefectSummary(params)
+      .then(r => {
+        const s = r.data;
+        const byType = { DIMENSION: 0, SURFACE: 0, ASSEMBLY: 0, OTHER: 0 };
+        if (s.qtyByType) {
+          Object.entries(s.qtyByType).forEach(([type, qty]) => {
+            if (byType[type] !== undefined) byType[type] = qty;
+          });
+        }
+        setSummary({ total: s.totalQty ?? 0, byType });
+      })
+      .catch(() => {});
   };
 
   const handleWoChange = (e) => {
     const id = e.target.value;
     setSelectedWo(id);
     setForm(f => ({ ...f, workOrderId: id }));
-    loadDefects(id);
+    loadDefects(id || null);
   };
 
   const handleSubmit = async (e) => {
@@ -46,27 +71,12 @@ export default function DefectPage() {
       await createDefect({ ...form, workOrderId: Number(form.workOrderId), qty: Number(form.qty) });
       setForm(empty);
       setShowForm(false);
-      loadDefects(selectedWo);
+      loadDefects(selectedWo || null);
+      loadSummary(null);
     } catch (err) {
       setError(err.response?.data?.message ?? '등록 실패. 다시 시도해주세요.');
     }
   };
-
-  // workOrderId → workOrderNo 매핑
-  const woMap = useMemo(() => {
-    const m = {};
-    workOrders.forEach(wo => { m[wo.id] = wo; });
-    return m;
-  }, [workOrders]);
-
-  // 요약 통계 (클라이언트 계산)
-  const summary = useMemo(() => {
-    const total = list.reduce((sum, d) => sum + d.qty, 0);
-    const byType = {};
-    DEFECT_TYPES.forEach(t => { byType[t] = 0; });
-    list.forEach(d => { if (byType[d.defectType] !== undefined) byType[d.defectType] += d.qty; });
-    return { total, byType };
-  }, [list]);
 
   return (
     <div>
@@ -150,23 +160,20 @@ export default function DefectPage() {
         <tbody>
           {list.length === 0 ? (
             <tr><td colSpan={6} style={{ ...styles.td, textAlign: 'center', color: '#aaa' }}>데이터 없음</td></tr>
-          ) : list.map(d => {
-            const wo = woMap[d.workOrderId];
-            return (
-              <tr key={d.id}>
-                <td style={styles.td}>{wo ? wo.workOrderNo : d.workOrderId}</td>
-                <td style={styles.td}>{d.equipmentId}</td>
-                <td style={styles.td}>
-                  <span style={{ ...styles.badge, background: DEFECT_COLORS[d.defectType] || '#8c8c8c' }}>
-                    {DEFECT_LABELS[d.defectType] ?? d.defectType}
-                  </span>
-                </td>
-                <td style={styles.td}>{d.qty}</td>
-                <td style={styles.td}>{new Date(d.detectedAt).toLocaleString('ko-KR')}</td>
-                <td style={{ ...styles.td, color: '#888' }}>{d.note ?? '-'}</td>
-              </tr>
-            );
-          })}
+          ) : list.map(d => (
+            <tr key={d.id}>
+              <td style={styles.td}>{d.workOrderNo}</td>
+              <td style={styles.td}>{d.equipmentId}</td>
+              <td style={styles.td}>
+                <span style={{ ...styles.badge, background: DEFECT_COLORS[d.defectType] || '#8c8c8c' }}>
+                  {DEFECT_LABELS[d.defectType] ?? d.defectType}
+                </span>
+              </td>
+              <td style={styles.td}>{d.qty}</td>
+              <td style={styles.td}>{new Date(d.detectedAt).toLocaleString('ko-KR')}</td>
+              <td style={{ ...styles.td, color: '#888' }}>{d.note ?? '-'}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
