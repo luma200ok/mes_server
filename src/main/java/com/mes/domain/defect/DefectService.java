@@ -38,6 +38,9 @@ public class DefectService {
                                              int page, int size) {
         LocalDate end   = endDate   != null ? endDate   : LocalDate.now();
         LocalDate start = startDate != null ? startDate : end.minusDays(30);
+        if (start.isAfter(end)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
         return defectRepository.findFiltered(start, end, defectType, equipmentId,
                         PageRequest.of(page, size))
                 .map(DefectResponse::from);
@@ -46,6 +49,9 @@ public class DefectService {
     public DefectSummaryResponse getSummary(LocalDate startDate, LocalDate endDate, String equipmentId) {
         LocalDate end   = endDate   != null ? endDate   : LocalDate.now();
         LocalDate start = startDate != null ? startDate : end.minusDays(30);
+        if (start.isAfter(end)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
 
         // DB에서 직접 집계 — OOM 없이 단일 쿼리
         List<DefectTypeStatDto> stats = defectRepository.aggregateByType(start, end, equipmentId);

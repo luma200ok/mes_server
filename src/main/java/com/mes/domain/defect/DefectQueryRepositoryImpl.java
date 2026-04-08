@@ -52,7 +52,7 @@ public class DefectQueryRepositoryImpl implements DefectQueryRepository {
         BooleanBuilder builder = buildPredicate(d, startDate, endDate, null, equipmentId);
 
         return queryFactory
-                .select(new QDefectTypeStatDto(d.defectType, d.count(), d.qty.sum().longValue()))
+                .select(new QDefectTypeStatDto(d.defectType, d.count(), d.qty.sum().castToNum(Long.class)))
                 .from(d)
                 .where(builder)
                 .groupBy(d.defectType)
