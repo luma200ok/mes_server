@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
-public interface DefectRepository extends JpaRepository<Defect, Long> {
+public interface DefectRepository extends JpaRepository<Defect, Long>, DefectQueryRepository {
 
     @EntityGraph(attributePaths = {"workOrder", "workOrder.equipment", "equipment"})
     List<Defect> findAll();

@@ -192,15 +192,31 @@ def manage_work_orders():
 
 # ── 센서 데이터 ────────────────────────────────────
 def generate_data(equipment_id: str, rng: random.Random, normal_ranges: dict, fault_ranges: dict):
-    is_fault = rng.random() < FAULT_RATE
-    ranges   = fault_ranges[equipment_id] if is_fault else normal_ranges[equipment_id]
-    payload  = {
+    """
+    센서 데이터 생성.
+    - 정상: 3개 센서 모두 normal_range
+    - 불량: 3개 중 1개만 fault_range, 나머지 2개는 normal_range
+      (어떤 센서가 불량인지 랜덤 선택 → 불량 유형 분류에 활용)
+    """
+    is_fault   = rng.random() < FAULT_RATE
+    normal     = normal_ranges[equipment_id]
+    fault      = fault_ranges[equipment_id]
+    fault_sensor = None
+
+    if is_fault:
+        fault_sensor = rng.choice(["temp", "vibration", "rpm"])
+
+    def pick(sensor: str) -> float:
+        r = fault[sensor] if (is_fault and sensor == fault_sensor) else normal[sensor]
+        return round(rng.uniform(*r), 2)
+
+    payload = {
         "equipmentId": equipment_id,
-        "temperature": round(rng.uniform(*ranges["temp"]),      2),
-        "vibration":   round(rng.uniform(*ranges["vibration"]), 2),
-        "rpm":         round(rng.uniform(*ranges["rpm"]),       2),
+        "temperature": pick("temp"),
+        "vibration":   pick("vibration"),
+        "rpm":         pick("rpm"),
     }
-    return payload, is_fault
+    return payload, is_fault, fault_sensor
 
 
 def send_data(payload: dict) -> bool:
@@ -248,10 +264,11 @@ def main():
 
         # ── 센서 데이터 전송
         for eq_id in equipment_ids:
-            payload, is_fault = generate_data(eq_id, rng, normal_ranges, fault_ranges)
+            payload, is_fault, fault_sensor = generate_data(eq_id, rng, normal_ranges, fault_ranges)
             ok        = send_data(payload)
-            send_icon = "✅" if ok       else "❌"
-            fault_tag = " ⚠️ FAULT"     if is_fault else ""
+            send_icon = "✅" if ok else "❌"
+            fault_label_map = {"temp": "온도", "vibration": "진동", "rpm": "RPM"}
+            fault_tag = f" ⚠️ FAULT({fault_label_map[fault_sensor]})" if is_fault else ""
             print(f"  {send_icon} {eq_id} | "
                   f"온도={payload['temperature']}°C  "
                   f"진동={payload['vibration']}  "
