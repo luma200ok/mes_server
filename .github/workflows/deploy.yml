@@ -9,6 +9,7 @@ on:
     branches: [ main ]
     paths-ignore:
       - 'portfolio/**'
+  workflow_dispatch:
 
 jobs:
   # ── 1. 빌드 & 테스트 ──────────────────────────────────────────────
