@@ -1,6 +1,7 @@
 package com.mes.domain.user;
 
 import com.mes.domain.user.dto.RegisterRequest;
+import com.mes.domain.user.dto.UpdateRoleRequest;
 import com.mes.domain.user.dto.UserResponse;
 import com.mes.global.exception.CustomException;
 import com.mes.global.exception.ErrorCode;
@@ -26,7 +27,7 @@ public class UserService {
         User user = User.builder()
                 .username(request.username())
                 .password(passwordEncoder.encode(request.password()))
-                .role(request.role())
+                .role(UserRole.OPERATOR)
                 .build();
         return UserResponse.from(userRepository.save(user));
     }
@@ -36,6 +37,14 @@ public class UserService {
         return userRepository.findAll().stream()
                 .map(UserResponse::from)
                 .toList();
+    }
+
+    @Transactional
+    public UserResponse updateRole(Long userId, UpdateRoleRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        user.changeRole(request.role());
+        return UserResponse.from(user);
     }
 
     @Transactional

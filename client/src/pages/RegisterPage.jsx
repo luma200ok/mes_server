@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { register } from '../api/auth';
 
 export default function RegisterPage() {
-  const [form, setForm]   = useState({ username: '', password: '', role: 'USER' });
+  const [form, setForm]   = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
@@ -14,7 +14,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
     try {
-      await register(form.username, form.password, form.role);
+      await register(form.username, form.password);
       setSuccess(true);
       setTimeout(() => navigate('/login'), 1500);
     } catch (err) {
@@ -37,10 +37,6 @@ export default function RegisterPage() {
           style={styles.input} name="password" type="password" placeholder="비밀번호 (6자 이상)"
           value={form.password} onChange={handleChange} minLength={6} required
         />
-        <select style={styles.input} name="role" value={form.role} onChange={handleChange}>
-          <option value="USER">일반 사용자</option>
-          <option value="ADMIN">관리자</option>
-        </select>
         <button style={styles.btn} type="submit">가입하기</button>
         <p style={styles.link}>이미 계정이 있으신가요? <Link to="/login">로그인</Link></p>
       </form>

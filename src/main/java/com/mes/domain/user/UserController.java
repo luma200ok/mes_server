@@ -1,6 +1,7 @@
 package com.mes.domain.user;
 
 import com.mes.domain.user.dto.RegisterRequest;
+import com.mes.domain.user.dto.UpdateRoleRequest;
 import com.mes.domain.user.dto.UserResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,6 +33,13 @@ public class UserController {
     @GetMapping
     public ResponseEntity<List<UserResponse>> getAll() {
         return ResponseEntity.ok(userService.getAll());
+    }
+
+    @Operation(summary = "사용자 권한 변경 (ADMIN)")
+    @PatchMapping("/{userId}/role")
+    public ResponseEntity<UserResponse> updateRole(@PathVariable Long userId,
+                                                   @Valid @RequestBody UpdateRoleRequest request) {
+        return ResponseEntity.ok(userService.updateRole(userId, request));
     }
 
     @Operation(summary = "사용자 삭제 (ADMIN)")

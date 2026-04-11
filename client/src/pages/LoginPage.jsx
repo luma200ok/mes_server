@@ -15,7 +15,7 @@ export default function LoginPage() {
     setError('');
     try {
       const res = await login(username, password);
-      saveToken(res.data.token);
+      saveToken(res.data.token, res.data.role);
       navigate('/');
     } catch {
       setError('아이디 또는 비밀번호가 올바르지 않습니다.');

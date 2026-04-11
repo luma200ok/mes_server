@@ -27,6 +27,7 @@ public class AuthController {
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final UserService userService;
+    private final com.mes.domain.user.UserRepository userRepository;
 
     @Operation(summary = "로그인")
     @PostMapping("/login")
@@ -43,7 +44,10 @@ public class AuthController {
         }
 
         String token = jwtTokenProvider.generateToken(userDetails.getUsername());
-        return ResponseEntity.ok(Map.of("token", token, "type", "Bearer"));
+        String role = userRepository.findByUsername(userDetails.getUsername())
+                .map(u -> u.getRole().name())
+                .orElse("OPERATOR");
+        return ResponseEntity.ok(Map.of("token", token, "type", "Bearer", "role", role));
     }
 
     @Operation(summary = "회원가입 (ADMIN만 호출 가능 - /api/users POST와 동일)")

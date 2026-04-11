@@ -31,4 +31,8 @@ public class User {
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
+
+    public void changeRole(UserRole role) {
+        this.role = role;
+    }
 }

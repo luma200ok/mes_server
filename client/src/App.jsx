@@ -9,6 +9,7 @@ import EquipmentPage from './pages/EquipmentPage';
 import WorkOrderPage from './pages/WorkOrderPage';
 import AlarmPage from './pages/AlarmPage';
 import DefectPage from './pages/DefectPage';
+import UserManagePage from './pages/UserManagePage';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
                   <Route path="/work-orders" element={<WorkOrderPage />} />
                   <Route path="/alarms"      element={<AlarmPage />} />
                   <Route path="/defects"     element={<DefectPage />} />
+                  <Route path="/users"       element={<UserManagePage />} />
                   <Route path="*"            element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>
