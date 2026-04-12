@@ -339,21 +339,49 @@ public class WorkOrderService {
                 .changedBy("SYSTEM_AUTO")
                 .build());
 
-        // active 키 삭제 (새 WO는 PENDING 상태)
+        // active 키 삭제 — 다음 WO는 자정 스케줄러가 생성
         redisTemplate.delete(WO_ACTIVE_PREFIX + equipmentId);
-
-        // 동일 설비에 동일 계획 수량으로 즉시 새 작업지시 생성
-        workOrderRepository.save(WorkOrder.builder()
-                .workOrderNo(generateWorkOrderNo())
-                .equipment(workOrder.getEquipment())
-                .plannedQty(workOrder.getPlannedQty())
-                .build());
     }
 
     /** 설비에 활성(PENDING/IN_PROGRESS) 작업지시가 있는지 여부 */
     public boolean hasActiveWorkOrder(String equipmentId) {
         return workOrderRepository.existsByEquipment_EquipmentIdAndStatusIn(
                 equipmentId, List.of(WorkOrderStatus.PENDING, WorkOrderStatus.IN_PROGRESS));
+    }
+
+    /**
+     * 자정 일일 롤오버.
+     * IN_PROGRESS → 현재 수량으로 COMPLETED 처리.
+     * PENDING     → 시작 전 삭제.
+     * 이후 새 WO 생성.
+     */
+    @Transactional
+    public void rolloverDailyWorkOrder(String equipmentId, int plannedQty) {
+        // IN_PROGRESS 강제 완료
+        workOrderRepository.findFirstByEquipment_EquipmentIdAndStatus(equipmentId, WorkOrderStatus.IN_PROGRESS)
+                .ifPresent(wo -> {
+                    wo.transitionTo(WorkOrderStatus.COMPLETED, wo.getGoodQty());
+                    historyRepository.save(WorkOrderHistory.builder()
+                            .workOrder(wo)
+                            .fromStatus(WorkOrderStatus.IN_PROGRESS)
+                            .toStatus(WorkOrderStatus.COMPLETED)
+                            .changedBy("SYSTEM_DAILY_ROLLOVER")
+                            .build());
+                    redisTemplate.delete(WO_ACTIVE_PREFIX + equipmentId);
+                });
+
+        // PENDING 삭제 (시작 전 미사용 WO)
+        workOrderRepository.findFirstByEquipment_EquipmentIdAndStatus(equipmentId, WorkOrderStatus.PENDING)
+                .ifPresent(workOrderRepository::delete);
+
+        // 새 일일 WO 생성
+        equipmentRepository.findByEquipmentId(equipmentId).ifPresent(equipment ->
+                workOrderRepository.save(WorkOrder.builder()
+                        .workOrderNo(generateWorkOrderNo())
+                        .equipment(equipment)
+                        .plannedQty(plannedQty)
+                        .build())
+        );
     }
 
     private String generateWorkOrderNo() {

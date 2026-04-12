@@ -54,10 +54,10 @@ mes:
     hard-delete-cron: ${MES_CLEANUP_HARD_DELETE_CRON:0 0 3 * * *}
   workorder:
     auto-create:
-      # 작업지시 자동 생성 주기 cron — 기본 매 정각
-      cron: ${MES_WORKORDER_AUTO_CREATE_CRON:0 0 * * * *}
-      # 자동 생성 시 설비당 계획 수량
-      planned-qty: ${MES_WORKORDER_AUTO_CREATE_QTY:500}
+      # 작업지시 자동 생성 주기 cron — 기본 매일 자정
+      cron: ${MES_WORKORDER_AUTO_CREATE_CRON:0 0 0 * * *}
+      # 자동 생성 시 설비당 계획 수량 (시간당 40개 × 24시간 ≈ 1,000개/일)
+      planned-qty: ${MES_WORKORDER_AUTO_CREATE_QTY:1000}
   oee:
     # OEE 계산 기준 일일 계획 가동 시간 (시간)
     planned-operation-hours: ${MES_OEE_PLANNED_HOURS:8.0}
