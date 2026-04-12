@@ -85,7 +85,8 @@ Python Simulator ──POST /api/sensor/data──► Spring Boot (인증 불필
   * **Redis INCR:** 센서 수신 시 `wo:good:{woId}`, `wo:defect:{woId}` 키를 원자적으로 증가 (DB 접근 없음)
   * **wo:active:{equipmentId}:** 활성 작업지시 ID를 Redis에 캐시하여 매 센서마다 IN_PROGRESS WO 조회 쿼리 제거
   * **Batch Flush:** `WorkOrderQtyFlushScheduler`가 1분마다 `wo:good:*` 키를 스캔하여 DB에 일괄 반영 후 Redis 키 삭제
-  * **자동 완료:** 계획 수량 달성 시 COMPLETED 전환 + 동일 설비 신규 작업지시 자동 생성
+  * **자동 완료:** 계획 수량(1,000개/일) 달성 시 COMPLETED 전환, 당일 WO는 자정 롤오버까지 유지
+  * **일일 롤오버:** 매일 자정 스케줄러가 IN_PROGRESS WO를 현재 수량으로 강제 완료 처리 후 새 WO 생성 → 날짜 기준 생산 실적 집계 보장
 * **📈 성과:** 센서 수신 경로에서 DB 접근을 0회로 감소, 설비 수 증가에도 쓰기 부하 불변
 
 <br>
@@ -278,4 +279,4 @@ python simulate.py
 
 ---
 
-최근 업데이트 2026.04.06 — README V1.3.0
+최근 업데이트 2026.04.12 — README V1.4.0
