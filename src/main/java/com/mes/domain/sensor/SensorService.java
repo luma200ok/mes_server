@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -27,6 +28,12 @@ public class SensorService {
 
     @Value("${mes.sensor.ttl-seconds}")
     private long sensorTtlSeconds;
+
+    @Value("${mes.workorder.production-interval-seconds}")
+    private long productionIntervalSeconds;
+
+    // 설비별 마지막 생산 카운트 시각 (시간당 40개 속도 제어)
+    private final ConcurrentHashMap<String, LocalDateTime> lastProductionTime = new ConcurrentHashMap<>();
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final EquipmentService equipmentService;
@@ -94,11 +101,16 @@ public class SensorService {
             if (faultType == null) faultType = DefectType.RPM;
         }
 
-        // 센서 1회 = 1단위 → Redis 카운터 증가 (DB 접근 없음)
-        if (faultType != null) {
-            workOrderService.recordDefectCount(data.getEquipmentId(), faultType);
-        } else {
-            workOrderService.recordGoodCount(data.getEquipmentId());
+        // 생산 인터벌(기본 90초)마다 1단위 카운팅 → 시간당 약 40개
+        LocalDateTime now  = LocalDateTime.now();
+        LocalDateTime last = lastProductionTime.get(data.getEquipmentId());
+        if (last == null || java.time.Duration.between(last, now).getSeconds() >= productionIntervalSeconds) {
+            lastProductionTime.put(data.getEquipmentId(), now);
+            if (faultType != null) {
+                workOrderService.recordDefectCount(data.getEquipmentId(), faultType);
+            } else {
+                workOrderService.recordGoodCount(data.getEquipmentId());
+            }
         }
     }
 
