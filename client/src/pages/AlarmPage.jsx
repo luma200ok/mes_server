@@ -118,6 +118,7 @@ export default function AlarmPage() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
