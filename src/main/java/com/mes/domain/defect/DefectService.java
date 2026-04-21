@@ -99,6 +99,7 @@ public class DefectService {
                 .build();
 
         defectRepository.save(defect);
+        workOrder.addDefectQty(request.qty());  // WorkOrder.defectQty 동기화
 
         if (workOrder.getStatus() == WorkOrderStatus.IN_PROGRESS
                 || workOrder.getStatus() == WorkOrderStatus.COMPLETED) {
