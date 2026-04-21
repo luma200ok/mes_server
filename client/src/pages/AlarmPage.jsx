@@ -96,6 +96,7 @@ export default function AlarmPage() {
       {err && <p style={{ color: 'red', fontSize: '13px', marginBottom: '8px' }}>{err}</p>}
       {loading && <p style={{ fontSize: '13px', color: '#888', marginBottom: '8px' }}>로딩 중...</p>}
 
+      <div className="table-scroll">
       <table style={styles.table}>
         <thead>
           <tr>{['설비', '항목', '현재값', '임계값', 'Discord 전송', '발생 시각'].map(h => (

@@ -36,6 +36,7 @@ export default function UserManagePage() {
   return (
     <div>
       <h2 style={styles.title}>사용자 관리</h2>
+      <div className="table-scroll">
       <table style={styles.table}>
         <thead>
           <tr style={styles.thead}>
@@ -69,6 +70,7 @@ export default function UserManagePage() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

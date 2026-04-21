@@ -2,6 +2,16 @@ import { useEffect, useState } from 'react';
 import { getDefects, getDefectsByWorkOrder, getDefectSummary, createDefect } from '../api/defect';
 import { getWorkOrders } from '../api/workorder';
 
+function useIsMobile() {
+  const [m, setM] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const h = () => setM(window.innerWidth < 768);
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  return m;
+}
+
 const DEFECT_TYPES  = ['DIMENSION', 'SURFACE', 'ASSEMBLY', 'OTHER'];
 const SENSOR_TYPES  = ['TEMPERATURE', 'VIBRATION', 'RPM'];
 const ALL_TYPES     = [...DEFECT_TYPES, ...SENSOR_TYPES];
@@ -20,6 +30,7 @@ const EMPTY_BY_TYPE = Object.fromEntries(ALL_TYPES.map(t => [t, 0]));
 const empty = { workOrderId: '', defectType: 'DIMENSION', qty: 1, note: '' };
 
 export default function DefectPage() {
+  const isMobile = useIsMobile();
   const [workOrders, setWorkOrders] = useState([]);
   const [selectedWo, setSelectedWo] = useState('');
   const [list, setList]             = useState([]);
@@ -99,27 +110,57 @@ export default function DefectPage() {
       </div>
 
       {/* 요약 카드 */}
-      <div style={styles.summaryRow}>
-        <div style={styles.summaryCard}>
-          <div style={styles.summaryValue}>{summary.total}</div>
-          <div style={styles.summaryLabel}>총 불량 수량</div>
-        </div>
-        {DEFECT_TYPES.map(t => (
-          <div key={t} style={{ ...styles.summaryCard, borderTop: `3px solid ${DEFECT_COLORS[t]}` }}>
-            <div style={{ ...styles.summaryValue, color: DEFECT_COLORS[t] }}>{summary.byType[t]}</div>
-            <div style={styles.summaryLabel}>{DEFECT_LABELS[t]}</div>
+      {isMobile ? (
+        /* 모바일: 2열 그리드 */
+        <>
+          <div style={styles.cardGrid}>
+            <div style={{ ...styles.summaryCard, gridColumn: 'span 2' }}>
+              <div style={styles.summaryValue}>{summary.total}</div>
+              <div style={styles.summaryLabel}>총 불량 수량</div>
+            </div>
+            {DEFECT_TYPES.map(t => (
+              <div key={t} style={{ ...styles.summaryCard, borderTop: `3px solid ${DEFECT_COLORS[t]}` }}>
+                <div style={{ ...styles.summaryValue, color: DEFECT_COLORS[t] }}>{summary.byType[t]}</div>
+                <div style={styles.summaryLabel}>{DEFECT_LABELS[t]}</div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div style={{ ...styles.summaryRow, marginTop: '-8px' }}>
-        <div style={{ ...styles.sectionLabel }}>센서 자동 감지</div>
-        {SENSOR_TYPES.map(t => (
-          <div key={t} style={{ ...styles.summaryCard, borderTop: `3px solid ${DEFECT_COLORS[t]}` }}>
-            <div style={{ ...styles.summaryValue, color: DEFECT_COLORS[t] }}>{summary.byType[t]}</div>
-            <div style={styles.summaryLabel}>{DEFECT_LABELS[t]}</div>
+          <div style={styles.sectionHeading}>센서 자동 감지</div>
+          <div style={{ ...styles.cardGrid, marginBottom: '16px' }}>
+            {SENSOR_TYPES.map(t => (
+              <div key={t} style={{ ...styles.summaryCard, borderTop: `3px solid ${DEFECT_COLORS[t]}` }}>
+                <div style={{ ...styles.summaryValue, color: DEFECT_COLORS[t] }}>{summary.byType[t]}</div>
+                <div style={styles.summaryLabel}>{DEFECT_LABELS[t]}</div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      ) : (
+        /* 데스크탑: 기존 가로 행 */
+        <>
+          <div style={styles.summaryRow}>
+            <div style={styles.summaryCard}>
+              <div style={styles.summaryValue}>{summary.total}</div>
+              <div style={styles.summaryLabel}>총 불량 수량</div>
+            </div>
+            {DEFECT_TYPES.map(t => (
+              <div key={t} style={{ ...styles.summaryCard, borderTop: `3px solid ${DEFECT_COLORS[t]}` }}>
+                <div style={{ ...styles.summaryValue, color: DEFECT_COLORS[t] }}>{summary.byType[t]}</div>
+                <div style={styles.summaryLabel}>{DEFECT_LABELS[t]}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ ...styles.summaryRow, marginTop: '-8px' }}>
+            <div style={styles.sectionLabel}>센서 자동 감지</div>
+            {SENSOR_TYPES.map(t => (
+              <div key={t} style={{ ...styles.summaryCard, borderTop: `3px solid ${DEFECT_COLORS[t]}` }}>
+                <div style={{ ...styles.summaryValue, color: DEFECT_COLORS[t] }}>{summary.byType[t]}</div>
+                <div style={styles.summaryLabel}>{DEFECT_LABELS[t]}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* 등록 폼 */}
       {showForm && (
@@ -169,6 +210,7 @@ export default function DefectPage() {
       </div>
 
       {/* 목록 */}
+      <div className="table-scroll">
       <table style={styles.table}>
         <thead>
           <tr>
@@ -196,6 +238,7 @@ export default function DefectPage() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -214,7 +257,9 @@ const styles = {
   label:        { width: '80px', fontSize: '13px', flexShrink: 0 },
   input:        { flex: 1, padding: '6px 8px', border: '1px solid #d9d9d9', borderRadius: '4px', fontSize: '13px' },
   submitBtn:    { background: '#52c41a', color: '#fff', border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: 'pointer', fontSize: '13px', alignSelf: 'flex-start' },
-  sectionLabel: { display: 'flex', alignItems: 'center', fontSize: '12px', color: '#8c8c8c', minWidth: '80px', fontWeight: 600 },
+  sectionLabel:   { display: 'flex', alignItems: 'center', fontSize: '12px', color: '#8c8c8c', minWidth: '80px', fontWeight: 600 },
+  cardGrid:       { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '10px' },
+  sectionHeading: { fontSize: '12px', color: '#8c8c8c', fontWeight: 600, marginBottom: '8px', marginTop: '4px' },
   filterRow:    { marginBottom: '12px', display: 'flex', alignItems: 'center' },
   table:        { width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: '8px', overflow: 'hidden' },
   th:           { background: '#fafafa', padding: '12px', textAlign: 'left', fontSize: '13px', borderBottom: '1px solid #f0f0f0' },

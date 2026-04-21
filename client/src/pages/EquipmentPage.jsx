@@ -116,6 +116,7 @@ export default function EquipmentPage() {
       )}
 
       {/* 설비 목록 */}
+      <div className="table-scroll">
       <table style={styles.table}>
         <thead>
           <tr>{['설비 ID', '이름', '위치', '상태', '액션'].map(h => <th key={h} style={styles.th}>{h}</th>)}</tr>
@@ -137,6 +138,7 @@ export default function EquipmentPage() {
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* 설정 패널 (모달) */}
       {configTarget && (

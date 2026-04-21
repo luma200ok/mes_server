@@ -141,6 +141,7 @@ export default function WorkOrderPage() {
       </div>
 
       {/* 목록 */}
+      <div className="table-scroll">
       <table style={styles.table}>
         <thead>
           <tr>
@@ -194,6 +195,7 @@ export default function WorkOrderPage() {
           })}
         </tbody>
       </table>
+      </div>
 
       {/* 페이징 */}
       <div style={styles.pagination}>
