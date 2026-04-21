@@ -3,8 +3,19 @@ import { getDefects, getDefectsByWorkOrder, getDefectSummary, createDefect } fro
 import { getWorkOrders } from '../api/workorder';
 
 const DEFECT_TYPES  = ['DIMENSION', 'SURFACE', 'ASSEMBLY', 'OTHER'];
-const DEFECT_LABELS = { DIMENSION: '치수', SURFACE: '표면', ASSEMBLY: '조립', OTHER: '기타' };
-const DEFECT_COLORS = { DIMENSION: '#ff4d4f', SURFACE: '#faad14', ASSEMBLY: '#1890ff', OTHER: '#8c8c8c' };
+const SENSOR_TYPES  = ['TEMPERATURE', 'VIBRATION', 'RPM'];
+const ALL_TYPES     = [...DEFECT_TYPES, ...SENSOR_TYPES];
+
+const DEFECT_LABELS = {
+  DIMENSION: '치수', SURFACE: '표면', ASSEMBLY: '조립', OTHER: '기타',
+  TEMPERATURE: '온도', VIBRATION: '진동', RPM: 'RPM',
+};
+const DEFECT_COLORS = {
+  DIMENSION: '#ff4d4f', SURFACE: '#faad14', ASSEMBLY: '#1890ff', OTHER: '#8c8c8c',
+  TEMPERATURE: '#ff7a45', VIBRATION: '#722ed1', RPM: '#13c2c2',
+};
+
+const EMPTY_BY_TYPE = Object.fromEntries(ALL_TYPES.map(t => [t, 0]));
 
 const empty = { workOrderId: '', defectType: 'DIMENSION', qty: 1, note: '' };
 
@@ -12,7 +23,7 @@ export default function DefectPage() {
   const [workOrders, setWorkOrders] = useState([]);
   const [selectedWo, setSelectedWo] = useState('');
   const [list, setList]             = useState([]);
-  const [summary, setSummary]       = useState({ total: 0, byType: { DIMENSION: 0, SURFACE: 0, ASSEMBLY: 0, OTHER: 0 } });
+  const [summary, setSummary]       = useState({ total: 0, byType: { ...EMPTY_BY_TYPE } });
   const [form, setForm]             = useState(empty);
   const [showForm, setShowForm]     = useState(false);
   const [error, setError]           = useState('');
@@ -46,7 +57,7 @@ export default function DefectPage() {
     return getDefectSummary(params)
       .then(r => {
         const s = r.data;
-        const byType = { DIMENSION: 0, SURFACE: 0, ASSEMBLY: 0, OTHER: 0 };
+        const byType = { ...EMPTY_BY_TYPE };
         if (s.qtyByType) {
           Object.entries(s.qtyByType).forEach(([type, qty]) => {
             if (byType[type] !== undefined) byType[type] = qty;
@@ -94,6 +105,15 @@ export default function DefectPage() {
           <div style={styles.summaryLabel}>총 불량 수량</div>
         </div>
         {DEFECT_TYPES.map(t => (
+          <div key={t} style={{ ...styles.summaryCard, borderTop: `3px solid ${DEFECT_COLORS[t]}` }}>
+            <div style={{ ...styles.summaryValue, color: DEFECT_COLORS[t] }}>{summary.byType[t]}</div>
+            <div style={styles.summaryLabel}>{DEFECT_LABELS[t]}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ ...styles.summaryRow, marginTop: '-8px' }}>
+        <div style={{ ...styles.sectionLabel }}>센서 자동 감지</div>
+        {SENSOR_TYPES.map(t => (
           <div key={t} style={{ ...styles.summaryCard, borderTop: `3px solid ${DEFECT_COLORS[t]}` }}>
             <div style={{ ...styles.summaryValue, color: DEFECT_COLORS[t] }}>{summary.byType[t]}</div>
             <div style={styles.summaryLabel}>{DEFECT_LABELS[t]}</div>
@@ -194,6 +214,7 @@ const styles = {
   label:        { width: '80px', fontSize: '13px', flexShrink: 0 },
   input:        { flex: 1, padding: '6px 8px', border: '1px solid #d9d9d9', borderRadius: '4px', fontSize: '13px' },
   submitBtn:    { background: '#52c41a', color: '#fff', border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: 'pointer', fontSize: '13px', alignSelf: 'flex-start' },
+  sectionLabel: { display: 'flex', alignItems: 'center', fontSize: '12px', color: '#8c8c8c', minWidth: '80px', fontWeight: 600 },
   filterRow:    { marginBottom: '12px', display: 'flex', alignItems: 'center' },
   table:        { width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: '8px', overflow: 'hidden' },
   th:           { background: '#fafafa', padding: '12px', textAlign: 'left', fontSize: '13px', borderBottom: '1px solid #f0f0f0' },
