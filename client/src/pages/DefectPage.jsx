@@ -150,8 +150,8 @@ export default function DefectPage() {
               </div>
             ))}
           </div>
-          <div style={{ ...styles.summaryRow, marginTop: '-8px' }}>
-            <div style={styles.sectionLabel}>센서 자동 감지</div>
+          <div style={styles.sectionHeading}>센서 자동 감지</div>
+          <div style={{ ...styles.summaryRow, marginTop: '0' }}>
             {SENSOR_TYPES.map(t => (
               <div key={t} style={{ ...styles.summaryCard, borderTop: `3px solid ${DEFECT_COLORS[t]}` }}>
                 <div style={{ ...styles.summaryValue, color: DEFECT_COLORS[t] }}>{summary.byType[t]}</div>
@@ -259,7 +259,7 @@ const styles = {
   submitBtn:    { background: '#52c41a', color: '#fff', border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: 'pointer', fontSize: '13px', alignSelf: 'flex-start' },
   sectionLabel:   { display: 'flex', alignItems: 'center', fontSize: '12px', color: '#8c8c8c', minWidth: '80px', fontWeight: 600 },
   cardGrid:       { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '10px' },
-  sectionHeading: { fontSize: '12px', color: '#8c8c8c', fontWeight: 600, marginBottom: '8px', marginTop: '4px' },
+  sectionHeading: { fontSize: '12px', color: '#8c8c8c', fontWeight: 600, marginBottom: '8px', marginTop: '-8px' },
   filterRow:    { marginBottom: '12px', display: 'flex', alignItems: 'center' },
   table:        { width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: '8px', overflow: 'hidden' },
   th:           { background: '#fafafa', padding: '12px', textAlign: 'left', fontSize: '13px', borderBottom: '1px solid #f0f0f0' },
