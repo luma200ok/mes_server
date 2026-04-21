@@ -92,7 +92,7 @@ export default function Layout({ children }) {
       </aside>
 
       {/* 메인 영역 */}
-      <div style={{ ...styles.mainWrapper, marginLeft: isMobile ? 0 : '200px' }}>
+      <div style={styles.mainWrapper}>
         {/* 모바일 상단 헤더 */}
         {isMobile && (
           <header style={styles.mobileHeader}>
