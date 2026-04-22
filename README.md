@@ -61,10 +61,10 @@
   ┌──────┴──────┐
   │             │
 ┌─▼───┐     ┌──▼──┐
-│MySQL│     │Redis│  센서 버퍼 (TTL 60s) + WO 카운터 + Spring Cache
+│MySQL│     │Redis│  센서 버퍼 (TTL 60s) + WO 카운터 + Spring Cache + Rate Limiter
 └─────┘     └─────┘
 
-Python Simulator ──POST /api/sensor/data──► Spring Boot (인증 불필요)
+Python Simulator ──POST /api/sensor/data (X-Api-Key 헤더)──► Spring Boot
                   (3초 간격, 설비 임계값 동적 로드)
 ```
 
@@ -152,12 +152,30 @@ Python Simulator ──POST /api/sensor/data──► Spring Boot (인증 불필
 
 <br>
 
+### 7. 🔒 Redis 기반 로그인 Rate Limiting (Fail-Open 패턴)
+> **의사결정:** 무차별 대입 공격 방어를 위해 Redis 카운터로 로그인 실패 횟수를 추적하고, Redis 장애 시 서비스 중단을 방지하는 Fail-Open 방식 채택
+
+* **🚨 Issue:** Redis 장애 시 Rate Limiter가 `RedisConnectionFailureException`을 전파하면 정상 사용자 로그인까지 500 오류로 차단
+* **💡 Resolution:**
+  * **Fail-Open:** `RedisConnectionFailureException` 발생 시 경고 로그만 남기고 로그인을 허용
+  * **Redis 키:** `login:fail:{username}` — TTL 15분, MAX 5회 실패 시 `TOO_MANY_LOGIN_ATTEMPTS(429)` 반환
+  * **자동 초기화:** 로그인 성공 시 실패 카운터 즉시 삭제
+* **📈 성과:** Redis 다운 시에도 인증 서비스 정상 운영, 브루트포스 공격 방어 가능
+
+<br>
+
 ## 📌 API 엔드포인트
+
+### 인증
+| Method | URI | 인증 | 설명 |
+|--------|-----|------|------|
+| POST | `/api/auth/login` | ❌ | 로그인 (JWT 발급) |
+| POST | `/api/auth/register` | ✅ ADMIN | 사용자 등록 |
 
 ### 센서
 | Method | URI | 인증 | 설명 |
 |--------|-----|------|------|
-| POST | `/api/sensor/data` | ❌ | 센서 데이터 수신 |
+| POST | `/api/sensor/data` | `X-Api-Key` 헤더 | 센서 데이터 수신 |
 
 ### 설비
 | Method | URI | 인증 | 설명 |
@@ -203,9 +221,9 @@ Python Simulator ──POST /api/sensor/data──► Spring Boot (인증 불필
 ### 사용자 관리 (ADMIN 전용)
 | Method | URI | 인증 | 설명 |
 |--------|-----|------|------|
-| POST | `/api/users` | ✅ | 사용자 등록 |
-| GET | `/api/users` | ✅ | 전체 사용자 조회 |
-| DELETE | `/api/users/{userId}` | ✅ | 사용자 삭제 |
+| POST | `/api/users` | ✅ ADMIN | 사용자 등록 |
+| GET | `/api/users` | ✅ ADMIN | 전체 사용자 조회 |
+| DELETE | `/api/users/{userId}` | ✅ ADMIN | 사용자 삭제 |
 
 ### 실시간
 | Method | URI | 인증 | 설명 |
@@ -229,9 +247,17 @@ docker-compose up -d
 ```
 
 ### 환경변수
-| 변수 | 설명 |
-|------|------|
-| `DISCORD_WEBHOOK_URL` | Discord 알림 웹훅 URL |
+
+| 변수 | 필수 | 기본값 (로컬) | 설명 |
+|------|------|--------------|------|
+| `DB_USERNAME` | ❌ | `root` | MySQL 사용자명 |
+| `DB_PASSWORD` | ❌ | `test1234` | MySQL 비밀번호 |
+| `JWT_SECRET` | ✅ (prod) | 로컬 기본값 제공 | JWT 서명 키 (256bit 이상) |
+| `REDIS_PASSWORD` | ❌ | (없음) | Redis 비밀번호 |
+| `DISCORD_WEBHOOK_URL` | ❌ | (없음) | Discord 알림 웹훅 URL |
+| `MES_SENSOR_API_KEY` | ✅ (prod) | `mes-sensor-local-key` | 센서 API 인증 키 |
+
+> ⚠️ 운영 환경에서는 반드시 `JWT_SECRET`과 `MES_SENSOR_API_KEY`를 안전한 값으로 설정하세요.
 
 ### 실행
 ```bash
@@ -257,7 +283,10 @@ python simulate.py
 
 | 환경변수 | 기본값 | 설명 |
 |---------|--------|------|
-| `MES_BASE_URL` | `https://www.rkqkdrnportfolio.shop/` | 서버 URL |
+| `MES_BASE_URL` | `http://localhost:8080` | 서버 URL |
+| `MES_ADMIN_ID` | `admin` | 로그인 계정 ID |
+| `MES_ADMIN_PW` | `admin1234` | 로그인 계정 PW |
+| `MES_SENSOR_API_KEY` | `mes-sensor-local-key` | 센서 엔드포인트 API 키 |
 | `SENSOR_INTERVAL` | `3` | 전송 주기 (초) |
 | `FAULT_RATE` | `0.001` | 이상 데이터 비율 (0.0 ~ 1.0) |
 | `RANDOM_SEED` | `42` | 난수 시드 (재현용) |
@@ -266,17 +295,38 @@ python simulate.py
 
 ## 🚨 예외 처리
 
-| 코드 | HTTP | 설명 |
-|------|------|------|
-| EQUIPMENT_NOT_FOUND | 404 | 설비 없음 |
-| WORK_ORDER_NOT_FOUND | 404 | 작업지시 없음 |
-| INVALID_STATUS_TRANSITION | 400 | 허용되지 않는 상태 전이 |
-| SENSOR_DATA_NOT_FOUND | 404 | 센서 데이터 없음 |
-| INVALID_INPUT_VALUE | 400 | 입력값 오류 |
-| DEFECT_NOT_FOUND | 404 | 불량 정보 없음 |
-| DEFECT_QTY_EXCEEDS_PLANNED | 400 | 양품 + 불량 수량이 계획 수량 초과 |
-| INTERNAL_SERVER_ERROR | 500 | 서버 내부 오류 |
+| 코드 | HTTP | Enum | 설명 |
+|------|------|------|------|
+| C001 | 400 | `INVALID_INPUT_VALUE` | 입력값 오류 |
+| C002 | 500 | `INTERNAL_SERVER_ERROR` | 서버 내부 오류 |
+| C003 | 401 | `UNAUTHORIZED` | 인증 필요 |
+| C004 | 403 | `FORBIDDEN` | 접근 권한 없음 |
+| A001 | 401 | `INVALID_TOKEN` | 유효하지 않은 토큰 |
+| A002 | 401 | `EXPIRED_TOKEN` | 만료된 토큰 |
+| A003 | 401 | `INVALID_CREDENTIALS` | 아이디 또는 비밀번호 오류 |
+| A004 | 429 | `TOO_MANY_LOGIN_ATTEMPTS` | 로그인 시도 횟수 초과 (15분 잠금) |
+| E001 | 404 | `EQUIPMENT_NOT_FOUND` | 설비 없음 |
+| E002 | 409 | `EQUIPMENT_ID_DUPLICATE` | 중복 설비 ID |
+| E003 | 404 | `EQUIPMENT_CONFIG_NOT_FOUND` | 설비 임계값 없음 |
+| W001 | 404 | `WORK_ORDER_NOT_FOUND` | 작업지시 없음 |
+| W002 | 400 | `WORK_ORDER_INVALID_STATUS_TRANSITION` | 허용되지 않는 상태 전이 |
+| W003 | 400 | `WORK_ORDER_ALREADY_COMPLETED` | 이미 완료된 작업지시 |
+| D001 | 404 | `DEFECT_NOT_FOUND` | 불량 정보 없음 |
+| D002 | 400 | `DEFECT_QTY_EXCEEDS_COMPLETED` | 불량 수량이 완료 수량 초과 |
+| D003 | 400 | `DEFECT_QTY_EXCEEDS_PLANNED` | 양품 + 불량 수량이 계획 수량 초과 |
+| S001 | 404 | `SENSOR_DATA_NOT_FOUND` | 센서 데이터 없음 |
+| U001 | 404 | `USER_NOT_FOUND` | 사용자 없음 |
+| U002 | 409 | `USER_ALREADY_EXISTS` | 중복 사용자명 |
+
+에러 응답 포맷:
+```json
+{
+  "timestamp": "2026-04-22T10:30:00",
+  "code": "A003",
+  "message": "아이디 또는 비밀번호가 올바르지 않습니다."
+}
+```
 
 ---
 
-최근 업데이트 2026.04.12 — README V1.4.0
+최근 업데이트 2026.04.22 — README V1.5.0
