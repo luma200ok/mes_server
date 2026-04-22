@@ -120,10 +120,16 @@ PENDING → IN_PROGRESS → COMPLETED
 
 | 엔드포인트 | 인증 |
 |---|---|
-| `POST /api/sensor/data` | 불필요 (시뮬레이터용) |
+| `POST /api/sensor/data` | `X-Api-Key: {MES_SENSOR_API_KEY}` 헤더 필요 (시뮬레이터용) |
 | `POST /api/auth/login` | 불필요 |
+| `POST /api/auth/register` | `Authorization: Bearer {JWT}` + ADMIN 권한 필요 |
 | `GET /api/sse/subscribe` | 불필요 |
 | 나머지 전체 | `Authorization: Bearer {JWT}` 필요 |
+
+## 로그인 Rate Limiting
+
+`LoginRateLimiter` (Redis 기반): 15분 내 5회 실패 시 계정 잠금.
+Redis 키: `login:fail:{username}` (TTL 15분)
 
 ## 코딩 규칙
 
