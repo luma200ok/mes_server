@@ -41,6 +41,8 @@ mes:
     ttl-seconds: ${MES_SENSOR_TTL_SECONDS:60}
     # Redis→MySQL 집계 주기 (ms)
     aggregation-delay-ms: ${MES_SENSOR_AGGREGATION_DELAY_MS:60000}
+    # 센서 데이터 수신 API Key (시뮬레이터와 공유)
+    api-key: ${MES_SENSOR_API_KEY:mes-sensor-local-key}
   sse:
     # SSE 연결 타임아웃 (ms) — 기본 30분
     timeout-ms: ${MES_SSE_TIMEOUT_MS:1800000}

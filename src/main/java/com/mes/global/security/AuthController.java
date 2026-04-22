@@ -27,30 +27,35 @@ public class AuthController {
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final UserService userService;
-    private final com.mes.domain.user.UserRepository userRepository;
+    private final LoginRateLimiter loginRateLimiter;
 
     @Operation(summary = "로그인")
     @PostMapping("/login")
     public ResponseEntity<Map<String, String>> login(@Valid @RequestBody LoginRequest request) {
+        // 잠금 여부 사전 확인
+        loginRateLimiter.checkNotLocked(request.username());
+
         UserDetails userDetails;
         try {
             userDetails = userDetailsService.loadUserByUsername(request.username());
         } catch (Exception e) {
+            loginRateLimiter.recordFailure(request.username());
             throw new BadCredentialsException("아이디 또는 비밀번호가 올바르지 않습니다.");
         }
 
         if (!passwordEncoder.matches(request.password(), userDetails.getPassword())) {
+            loginRateLimiter.recordFailure(request.username());
             throw new BadCredentialsException("아이디 또는 비밀번호가 올바르지 않습니다.");
         }
 
+        loginRateLimiter.clearFailures(request.username());
+
         String token = jwtTokenProvider.generateToken(userDetails.getUsername());
-        String role = userRepository.findByUsername(userDetails.getUsername())
-                .map(u -> u.getRole().name())
-                .orElse("OPERATOR");
+        String role  = userService.findRoleByUsername(userDetails.getUsername());
         return ResponseEntity.ok(Map.of("token", token, "type", "Bearer", "role", role));
     }
 
-    @Operation(summary = "회원가입 (ADMIN만 호출 가능 - /api/users POST와 동일)")
+    @Operation(summary = "사용자 등록 (ADMIN 전용)")
     @PostMapping("/register")
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.register(request));

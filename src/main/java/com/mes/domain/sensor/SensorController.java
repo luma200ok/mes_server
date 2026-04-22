@@ -5,6 +5,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,9 +20,19 @@ public class SensorController {
     private final SensorService sensorService;
     private final SseEmitterService sseEmitterService;
 
-    @Operation(summary = "센서 데이터 수신 (시뮬레이터용, 인증 불필요)")
+    @Value("${mes.sensor.api-key}")
+    private String sensorApiKey;
+
+    @Operation(summary = "센서 데이터 수신 (시뮬레이터용, X-Api-Key 헤더 필요)")
     @PostMapping("/api/sensor/data")
-    public ResponseEntity<Void> receiveSensorData(@Valid @RequestBody SensorDataRequest request) {
+    public ResponseEntity<Void> receiveSensorData(
+            @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+            @Valid @RequestBody SensorDataRequest request) {
+
+        if (!sensorApiKey.equals(apiKey)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
         sensorService.receiveSensorData(request);
         return ResponseEntity.ok().build();
     }

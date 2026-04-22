@@ -23,7 +23,7 @@ server:
 
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:local-dev-secret-key-minimum-256-bits-required-for-hmac-sha256}
 
 logging:
   level:

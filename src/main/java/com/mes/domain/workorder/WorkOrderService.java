@@ -8,26 +8,20 @@ import com.mes.domain.equipment.EquipmentRepository;
 import com.mes.domain.workorder.dto.*;
 import com.mes.global.exception.CustomException;
 import com.mes.global.exception.ErrorCode;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
-import org.apache.poi.ss.usermodel.*;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @RequiredArgsConstructor
@@ -46,22 +40,10 @@ public class WorkOrderService {
     private final EquipmentRepository equipmentRepository;
     private final DefectRepository defectRepository;
     private final RedisTemplate<String, Object> redisTemplate;
-
-    private final AtomicInteger workOrderSeq = new AtomicInteger(0);
-
-    /**
-     * 서버 기동 시 오늘 날짜 작업지시 수로 seq 초기화.
-     * 재시작 후 중복 번호 생성 방지.
-     */
-    @PostConstruct
-    public void initSeq() {
-        String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        long count = workOrderRepository.countByWorkOrderNoStartingWith("WO-" + today + "-");
-        workOrderSeq.set((int) count);
-    }
+    private final WorkOrderNoGenerator noGenerator;
+    private final WorkOrderExcelService excelService;
 
     public List<WorkOrderResponse> findFiltered(LocalDate startDate, LocalDate endDate, WorkOrderStatus status) {
-        // 날짜 미지정 시 기본 30일
         LocalDate end   = endDate   != null ? endDate   : LocalDate.now();
         LocalDate start = startDate != null ? startDate : end.minusDays(30);
         return workOrderRepository.findByDateRange(start, end, status).stream()
@@ -89,9 +71,8 @@ public class WorkOrderService {
         Equipment equipment = equipmentRepository.findByEquipmentId(request.equipmentId())
                 .orElseThrow(() -> new CustomException(ErrorCode.EQUIPMENT_NOT_FOUND));
 
-        String workOrderNo = generateWorkOrderNo();
         WorkOrder workOrder = WorkOrder.builder()
-                .workOrderNo(workOrderNo)
+                .workOrderNo(noGenerator.generate())
                 .equipment(equipment)
                 .plannedQty(request.plannedQty())
                 .build();
@@ -135,110 +116,15 @@ public class WorkOrderService {
                 .toList();
     }
 
+    /** Excel 업로드 — WorkOrderExcelService 위임 */
     @Transactional
     public WorkOrderUploadResult uploadExcel(MultipartFile file) {
-        List<WorkOrderUploadResult.RowError> errors = new ArrayList<>();
-        int successCount = 0;
-        int rowIndex = 0;
-
-        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
-            Sheet sheet = workbook.getSheetAt(0);
-            int lastRow = sheet.getLastRowNum();
-
-            // 헤더(0번 행) 스킵, 1번 행부터 처리
-            for (rowIndex = 1; rowIndex <= lastRow; rowIndex++) {
-                Row row = sheet.getRow(rowIndex);
-                if (row == null || isRowEmpty(row)) continue;
-
-                try {
-                    String equipmentId = getCellString(row.getCell(0));
-                    int plannedQty    = (int) getCellNumeric(row.getCell(1));
-
-                    if (equipmentId.isBlank()) {
-                        errors.add(new WorkOrderUploadResult.RowError(rowIndex + 1, "설비 ID가 비어 있습니다."));
-                        continue;
-                    }
-                    if (plannedQty < 1) {
-                        errors.add(new WorkOrderUploadResult.RowError(rowIndex + 1, "계획 수량은 1 이상이어야 합니다."));
-                        continue;
-                    }
-
-                    Equipment equipment = equipmentRepository.findByEquipmentId(equipmentId)
-                            .orElseThrow(() -> new CustomException(ErrorCode.EQUIPMENT_NOT_FOUND));
-
-                    workOrderRepository.save(WorkOrder.builder()
-                            .workOrderNo(generateWorkOrderNo())
-                            .equipment(equipment)
-                            .plannedQty(plannedQty)
-                            .build());
-                    successCount++;
-
-                } catch (CustomException e) {
-                    errors.add(new WorkOrderUploadResult.RowError(rowIndex + 1, e.getMessage()));
-                } catch (Exception e) {
-                    errors.add(new WorkOrderUploadResult.RowError(rowIndex + 1, "데이터 형식 오류: " + e.getMessage()));
-                }
-            }
-        } catch (IOException e) {
-            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-
-        return new WorkOrderUploadResult(rowIndex, successCount, errors.size(), errors);
+        return excelService.uploadExcel(file);
     }
 
+    /** 업로드 템플릿 다운로드 — WorkOrderExcelService 위임 */
     public XSSFWorkbook downloadTemplate() {
-        XSSFWorkbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("작업지시 업로드");
-
-        // 헤더 스타일
-        CellStyle headerStyle = workbook.createCellStyle();
-        Font font = workbook.createFont();
-        font.setBold(true);
-        headerStyle.setFont(font);
-        headerStyle.setFillForegroundColor(IndexedColors.LIGHT_BLUE.getIndex());
-        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-
-        Row header = sheet.createRow(0);
-        String[] headers = {"설비 ID (equipmentId)", "계획 수량 (plannedQty)"};
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = header.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-            sheet.setColumnWidth(i, 6000);
-        }
-
-        // 예시 데이터 1행
-        Row example = sheet.createRow(1);
-        example.createCell(0).setCellValue("EQ-001");
-        example.createCell(1).setCellValue(100);
-
-        return workbook;
-    }
-
-    private boolean isRowEmpty(Row row) {
-        for (int c = row.getFirstCellNum(); c < row.getLastCellNum(); c++) {
-            Cell cell = row.getCell(c);
-            if (cell != null && cell.getCellType() != CellType.BLANK) return false;
-        }
-        return true;
-    }
-
-    private String getCellString(Cell cell) {
-        if (cell == null) return "";
-        return switch (cell.getCellType()) {
-            case STRING  -> cell.getStringCellValue().trim();
-            case NUMERIC -> String.valueOf((long) cell.getNumericCellValue());
-            default      -> "";
-        };
-    }
-
-    private double getCellNumeric(Cell cell) {
-        if (cell == null) return 0;
-        return switch (cell.getCellType()) {
-            case NUMERIC -> cell.getNumericCellValue();
-            case STRING  -> Double.parseDouble(cell.getStringCellValue().trim());
-            default      -> 0;
-        };
+        return excelService.downloadTemplate();
     }
 
     /**
@@ -269,7 +155,6 @@ public class WorkOrderService {
         if (cached != null) {
             return ((Number) cached).longValue();
         }
-        // DB 폴백 (캐시 미스 시에만 쿼리)
         return workOrderRepository
                 .findFirstByEquipment_EquipmentIdAndStatus(equipmentId, WorkOrderStatus.IN_PROGRESS)
                 .map(wo -> {
@@ -281,7 +166,6 @@ public class WorkOrderService {
 
     /**
      * Redis 카운터 → DB 반영 (스케줄러 호출용).
-     * goodQty / defectQty 누적 반영 후 계획 수량 달성 시 COMPLETED 자동 전환 + 새 WO 생성.
      */
     @Transactional
     public void flushQtyCounts(Long woId) {
@@ -292,7 +176,6 @@ public class WorkOrderService {
         if (goodIncr == 0 && defectIncr == 0) return;
 
         workOrderRepository.findById(woId).ifPresent(workOrder -> {
-            // 불량 타입별 Defect 레코드 저장
             for (String typeName : defectTypeNames) {
                 DefectType dt = DefectType.valueOf(typeName);
                 defectRepository.save(Defect.builder()
@@ -303,7 +186,6 @@ public class WorkOrderService {
                         .note("[자동] 센서 임계값 초과 (" + dt.name() + ")")
                         .build());
             }
-            // 수량 일괄 반영 (계획 수량 초과 방지)
             int remaining    = workOrder.getPlannedQty() - workOrder.getGoodQty() - workOrder.getDefectQty();
             int cappedGood   = Math.min(goodIncr,   Math.max(0, remaining));
             int cappedDefect = Math.min(defectIncr, Math.max(0, remaining - cappedGood));
@@ -339,25 +221,16 @@ public class WorkOrderService {
                 .changedBy("SYSTEM_AUTO")
                 .build());
 
-        // active 키 삭제 — 다음 WO는 자정 스케줄러가 생성
         redisTemplate.delete(WO_ACTIVE_PREFIX + equipmentId);
     }
 
-    /** 설비에 활성(PENDING/IN_PROGRESS) 작업지시가 있는지 여부 */
     public boolean hasActiveWorkOrder(String equipmentId) {
         return workOrderRepository.existsByEquipment_EquipmentIdAndStatusIn(
                 equipmentId, List.of(WorkOrderStatus.PENDING, WorkOrderStatus.IN_PROGRESS));
     }
 
-    /**
-     * 자정 일일 롤오버.
-     * IN_PROGRESS → 현재 수량으로 COMPLETED 처리.
-     * PENDING     → 시작 전 삭제.
-     * 이후 새 WO 생성.
-     */
     @Transactional
     public void rolloverDailyWorkOrder(String equipmentId, int plannedQty) {
-        // IN_PROGRESS 강제 완료
         workOrderRepository.findFirstByEquipment_EquipmentIdAndStatus(equipmentId, WorkOrderStatus.IN_PROGRESS)
                 .ifPresent(wo -> {
                     wo.transitionTo(WorkOrderStatus.COMPLETED, wo.getGoodQty());
@@ -370,24 +243,16 @@ public class WorkOrderService {
                     redisTemplate.delete(WO_ACTIVE_PREFIX + equipmentId);
                 });
 
-        // PENDING 삭제 (시작 전 미사용 WO)
         workOrderRepository.findFirstByEquipment_EquipmentIdAndStatus(equipmentId, WorkOrderStatus.PENDING)
                 .ifPresent(workOrderRepository::delete);
 
-        // 새 일일 WO 생성
         equipmentRepository.findByEquipmentId(equipmentId).ifPresent(equipment ->
                 workOrderRepository.save(WorkOrder.builder()
-                        .workOrderNo(generateWorkOrderNo())
+                        .workOrderNo(noGenerator.generate())
                         .equipment(equipment)
                         .plannedQty(plannedQty)
                         .build())
         );
-    }
-
-    private String generateWorkOrderNo() {
-        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        int seq = workOrderSeq.incrementAndGet();
-        return String.format("WO-%s-%03d", date, seq);
     }
 
     private String getCurrentUsername() {

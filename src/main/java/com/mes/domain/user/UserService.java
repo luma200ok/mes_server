@@ -53,4 +53,11 @@ public class UserService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         userRepository.delete(user);
     }
+
+    @Transactional(readOnly = true)
+    public String findRoleByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .map(u -> u.getRole().name())
+                .orElse("OPERATOR");
+    }
 }

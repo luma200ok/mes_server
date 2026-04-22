@@ -33,7 +33,7 @@ public class SecurityConfig {
                 .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC, DispatcherType.INCLUDE).permitAll()
                 // 인증 불필요
                 .requestMatchers(
-                    "/api/auth/**",
+                    "/api/auth/login",
                     "/api/sensor/data",
                     "/api/sse/subscribe",
                     "/actuator/health",
@@ -44,6 +44,7 @@ public class SecurityConfig {
                     "/dashboard"
                 ).permitAll()
                 // ADMIN 전용
+                .requestMatchers(HttpMethod.POST, "/api/auth/register").hasRole("ADMIN")
                 .requestMatchers("/api/users/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST,   "/api/equipment").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT,    "/api/equipment/**").hasRole("ADMIN")

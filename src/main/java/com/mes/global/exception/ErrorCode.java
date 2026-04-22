@@ -39,7 +39,8 @@ public enum ErrorCode {
 
     // User
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "U001", "사용자를 찾을 수 없습니다."),
-    USER_ALREADY_EXISTS(HttpStatus.CONFLICT, "U002", "이미 존재하는 사용자명입니다.");
+    USER_ALREADY_EXISTS(HttpStatus.CONFLICT, "U002", "이미 존재하는 사용자명입니다."),
+    TOO_MANY_LOGIN_ATTEMPTS(HttpStatus.TOO_MANY_REQUESTS, "A004", "로그인 시도 횟수를 초과했습니다. 15분 후 다시 시도해주세요.");
 
     private final HttpStatus httpStatus;
     private final String code;
