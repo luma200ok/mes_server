@@ -3,6 +3,7 @@ package com.mes.global.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.MediaType;
@@ -44,6 +45,13 @@ public class GlobalExceptionHandler {
                 .findFirst()
                 .orElse(ErrorCode.INVALID_INPUT_VALUE.getMessage());
         return ResponseEntity.badRequest().body(errorBody(ErrorCode.INVALID_INPUT_VALUE.getCode(), message));
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException e) {
+        return ResponseEntity
+                .status(ErrorCode.INVALID_CREDENTIALS.getHttpStatus())
+                .body(errorBody(ErrorCode.INVALID_CREDENTIALS.getCode(), ErrorCode.INVALID_CREDENTIALS.getMessage()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

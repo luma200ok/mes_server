@@ -18,12 +18,13 @@ from datetime import datetime
 from typing import Optional
 
 # ── 설정 ──────────────────────────────────────────
-BASE_URL   = os.getenv("MES_BASE_URL",        "http://localhost:8080")
-INTERVAL   = int(os.getenv("SENSOR_INTERVAL", "3"))       # 센서 전송 주기 (초)
-FAULT_RATE = float(os.getenv("FAULT_RATE",    "0.001"))    # 이상 데이터 비율 (0.1%)
-SEED       = int(os.getenv("RANDOM_SEED",     "42"))
-ADMIN_ID   = os.getenv("MES_ADMIN_ID",        "admin")
-ADMIN_PW   = os.getenv("MES_ADMIN_PW",        "admin1234")
+BASE_URL        = os.getenv("MES_BASE_URL",        "http://localhost:8080")
+INTERVAL        = int(os.getenv("SENSOR_INTERVAL", "3"))       # 센서 전송 주기 (초)
+FAULT_RATE      = float(os.getenv("FAULT_RATE",    "0.001"))    # 이상 데이터 비율 (0.1%)
+SEED            = int(os.getenv("RANDOM_SEED",     "42"))
+ADMIN_ID        = os.getenv("MES_ADMIN_ID",        "admin")
+ADMIN_PW        = os.getenv("MES_ADMIN_PW",        "admin1234")
+SENSOR_API_KEY  = os.getenv("MES_SENSOR_API_KEY",  "mes-sensor-local-key")
 
 # 임계값 대비 정상/이상 범위 비율
 NORMAL_RATIO = (0.70, 0.99)   # 임계값의 70~99%   → 정상
@@ -224,6 +225,7 @@ def send_data(payload: dict) -> bool:
         resp = requests.post(
             f"{BASE_URL}/api/sensor/data",
             json=payload,
+            headers={"X-Api-Key": SENSOR_API_KEY},
             timeout=5,
         )
         return resp.status_code == 200
