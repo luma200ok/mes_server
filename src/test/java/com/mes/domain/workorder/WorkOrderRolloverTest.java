@@ -29,6 +29,8 @@ class WorkOrderRolloverTest {
     @Mock EquipmentRepository equipmentRepository;
     @Mock DefectRepository defectRepository;
     @Mock RedisTemplate<String, Object> redisTemplate;
+    @Mock WorkOrderNoGenerator noGenerator;
+    @Mock WorkOrderExcelService excelService;
 
     @InjectMocks WorkOrderService workOrderService;
 
@@ -42,8 +44,7 @@ class WorkOrderRolloverTest {
                 .location("A동")
                 .build();
 
-        given(workOrderRepository.countByWorkOrderNoStartingWith(any())).willReturn(0L);
-        workOrderService.initSeq();
+        given(noGenerator.generate()).willReturn("WO-20260422-001");
     }
 
     @Test
