@@ -13,6 +13,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .allowedOrigins(
                     "http://localhost:5173",
                     "http://localhost:3000",
+                    "https://mes.luma200ok.com",
                     "https://mes.rkqkdrnportfolio.shop",
                     "http://mes.rkqkdrnportfolio.shop"
                 )
@@ -25,6 +26,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .allowedOrigins(
                     "http://localhost:5173",
                     "http://localhost:3000",
+                    "https://mes.luma200ok.com",
                     "https://mes.rkqkdrnportfolio.shop",
                     "http://mes.rkqkdrnportfolio.shop"
                 )
