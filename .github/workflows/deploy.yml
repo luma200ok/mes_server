@@ -1,6 +1,6 @@
 name: MES Server CI/CD
 
-# OCI(A, oci-arm1) 배포 — systemd 서비스 방식
+# OCI(B, oci-arm2) 배포 — systemd 서비스 방식 (mes.service, 포트 8086)
 # 백엔드 jar + React(client/dist) 정적 + simulator 동시 배포.
 # 시크릿은 서버의 /etc/app-secrets/mes.env 에 보관.
 
@@ -31,10 +31,13 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 3. 백엔드 빌드 (테스트 제외)
+      - name: 3. 백엔드 테스트
         run: |
           chmod +x gradlew
-          ./gradlew bootJar -x test
+          ./gradlew test
+
+      - name: 3-1. 백엔드 빌드
+        run: ./gradlew bootJar -x test
 
       - name: 4. Node 20
         uses: actions/setup-node@v4
@@ -110,8 +113,8 @@ jobs:
             UP=0
             for i in $(seq 1 18); do
               sleep 5
-              CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$PORT/api/auth/login 2>/dev/null || echo 000)
-              if [ "$CODE" != "000" ]; then echo "> ✅ $APP 정상 (HTTP $CODE)"; UP=1; break; fi
+              CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$PORT/actuator/health 2>/dev/null || echo 000)
+              if [ "$CODE" = "200" ]; then echo "> ✅ $APP 정상 (HTTP $CODE)"; UP=1; break; fi
               echo "> 시도 $i/18 (HTTP $CODE)..."
             done
             if [ "$UP" != "1" ]; then echo "> ❌ $APP 기동 실패"; sudo journalctl -u $APP -n 40 --no-pager; exit 1; fi
