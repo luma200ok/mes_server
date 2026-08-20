@@ -1,0 +1,14 @@
+# mes-simulator — 홈서버 이전 파일럿 도커 이미지. simulate.py는 requests만 외부 의존.
+# OCI 배포(mes-simulator systemd 유닛)와 무관, 병행 — 레포의 simulator/simulate.py를 그대로 실행한다.
+FROM python:3.12-slim
+WORKDIR /app
+
+# 컨테이너(non-tty) stdout은 기본 block-buffered라 `docker logs`에 출력이 지연 반영된다 —
+# 즉시 flush되도록 unbuffered 모드 고정(diagnose 헬퍼가 로그로 상태를 판단하므로 필수).
+ENV PYTHONUNBUFFERED=1
+
+RUN pip install --no-cache-dir requests
+
+COPY simulator/simulate.py .
+
+CMD ["python", "simulate.py"]

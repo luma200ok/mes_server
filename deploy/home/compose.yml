@@ -1,0 +1,69 @@
+# mes_server 레포 홈서버 이전 파일럿 — docker compose 스택 (OCI 배포 deploy.yml과 무관, 병행).
+# 실행 위치: 이 파일이 있는 deploy/home/ 디렉터리 (.env는 같은 디렉터리에 둔다, .env.example 참고)
+#
+# 네트워크 구성:
+#   - default(내부): app ↔ simulator 통신용 (simulator가 http://mes:8086 으로 app 호출)
+#   - shared-net(외부, 사전 생성 필요: `docker network create shared-net`): app만 조인
+#     — 호스트에 이미 떠 있는 db-mysql(MySQL 8, mes_db 스키마 복원됨)·db-redis(Redis 7,
+#     requirepass) 컨테이너 접근용. 두 컨테이너도 shared-net에 조인돼 있어야 app이 붙을 수 있다
+#     (README.md 체크리스트 참고 — 조인은 메타가 사전 처리).
+#
+# TLS/외부 노출은 이 스택에서 다루지 않는다 — 8086은 로컬 스모크(127.0.0.1)에만 publish한다.
+# application-prod.yml은 무수정 — datasource URL·redis host/port·서버 포트는 전부
+# env(Spring 상대 우선순위: OS 환경변수 > application-{profile}.yml)로 오버라이드한다.
+
+# 프로젝트명 고정 — 실행 CWD·유저에 따라 프로젝트명이 달라져 같은 스택이 이중으로 뜨는 것을 방지
+name: mes-home
+
+networks:
+  shared-net:
+    external: true
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: mes
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8086
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_OPTS: -Xmx512m
+      # application-prod.yml의 하드코딩된 localhost URL을 env 우선순위로 덮어씀(코드 무수정)
+      SPRING_DATASOURCE_URL: jdbc:mysql://db-mysql:3306/mes_db?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true
+      # application-prod.yml의 하드코딩된 spring.data.redis.host/port(localhost/6379)를 덮어씀
+      SPRING_DATA_REDIS_HOST: db-redis
+      SPRING_DATA_REDIS_PORT: 6379
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD}
+      SPRING_DATA_REDIS_DATABASE: ${SPRING_DATA_REDIS_DATABASE}
+    ports:
+      # 홈서버 로컬 스모크 전용 바인딩 — 외부 노출 방식(리버스 프록시/터널)은 별도 PR에서 결정
+      - "127.0.0.1:8086:8086"
+    networks:
+      - default
+      - shared-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  simulator:
+    build:
+      context: ../..
+      dockerfile: deploy/home/Dockerfile.simulator
+    container_name: mes-simulator
+    restart: unless-stopped
+    environment:
+      MES_BASE_URL: http://mes:8086
+    networks:
+      - default
+    depends_on:
+      app:
+        condition: service_healthy
