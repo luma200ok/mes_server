@@ -11,4 +11,8 @@ RUN pip install --no-cache-dir requests
 
 COPY simulator/simulate.py .
 
+# 비루트 실행 — 메인 이미지와 정합(리뷰 P3)
+RUN useradd --uid 1000 --create-home sim
+USER sim
+
 CMD ["python", "simulate.py"]

@@ -38,6 +38,8 @@ services:
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      # 센서 수신 API 키 — 소스의 공개 기본값(mes-sensor-local-key) 의존 금지(리뷰 P2)
+      MES_SENSOR_API_KEY: ${MES_SENSOR_API_KEY:?required}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
       SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD}
       SPRING_DATA_REDIS_DATABASE: ${SPRING_DATA_REDIS_DATABASE}
@@ -62,6 +64,7 @@ services:
     restart: unless-stopped
     environment:
       MES_BASE_URL: http://mes:8086
+      MES_SENSOR_API_KEY: ${MES_SENSOR_API_KEY:?required}
     networks:
       - default
     depends_on:
