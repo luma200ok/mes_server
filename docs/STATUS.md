@@ -16,7 +16,7 @@
 | 시크릿 | arm2 `/etc/app-secrets/mes.env` |
 | CI/CD | `.github/workflows/deploy.yml` — main push → test → bootJar → scp → `systemctl restart` + `/actuator/health` 체크 |
 | 스키마 관리 | **Flyway** (`src/main/resources/db/migration`), 운영 baseline v1, `ddl-auto: validate` |
-| 조회 헬퍼 | arm2 `/usr/local/bin/mes` — `mes schema` / `mes sql "<q>"` / `mes tables` / `mes counts` / `mes health` / `mes log [n]` |
+| 조회 헬퍼 | arm2 `/usr/local/bin/mes` — **미설치(설치 예정)**. `mes schema` / `mes sql "<q>"` / `mes tables` / `mes counts` / `mes health` / `mes log [n]` |
 
 > ⚠️ **arm1 잔재**: `mes.service`(failed) · `/var/www/mes-client`(07-02) · `migrated-mes.conf` 가 남아 있음.
 > arm1 origin 직결 시 `/api` 가 502. 정리 필요 (아래 P1).
