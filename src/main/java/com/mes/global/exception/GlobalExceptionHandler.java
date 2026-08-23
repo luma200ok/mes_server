@@ -1,5 +1,6 @@
 package com.mes.global.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -11,6 +12,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -77,6 +80,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.internalServerError()
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(errorBody(ErrorCode.INTERNAL_SERVER_ERROR.getCode(), ErrorCode.INTERNAL_SERVER_ERROR.getMessage()));
+    }
+
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<Map<String, Object>> handleNotFound(Exception e, HttpServletRequest request) {
+        // 매핑되지 않은 경로 요청(대부분 봇/스캐너 트래픽). 원래 문제는 이게 ERROR + 스택트레이스로 남아
+        // 진짜 장애 로그를 묻은 것이었다 — 스택트레이스는 버리되, 라우팅 실수(프론트가 오타 경로를 호출하는
+        // 실 트래픽 등)를 영영 못 보게 되지 않도록 한 줄 info 는 남긴다.
+        log.info("No handler found for request: {} {}", request.getMethod(), request.getRequestURI());
+        return ResponseEntity.status(ErrorCode.RESOURCE_NOT_FOUND.getHttpStatus())
+                .body(errorBody(ErrorCode.RESOURCE_NOT_FOUND.getCode(), ErrorCode.RESOURCE_NOT_FOUND.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)
