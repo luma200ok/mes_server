@@ -20,7 +20,14 @@ networks:
     external: true
 
 services:
-  app:
+  # ⚠️ 서비스 키가 `app` 이 아닌 이유 (luma200ok/home-infra#15) — compose 는 서비스가 조인하는
+  #    **모든** 네트워크에 **서비스 키를 별칭으로 게시**한다. 공유망 shared-net(홈서버 전 스택 공용)에
+  #    `app` 같은 일반명을 올리면 같은 이름을 올린 다른 스택과 도커 DNS 가 라운드로빈한다.
+  #    2026-08-23 실측에서 community·mes·pension·dopacheck 네 컨테이너가 동시에 `app` 을 게시하고
+  #    있었고, 같은 구조의 `frontend` 충돌로 farm.luma200ok.com 이 실제로 502 가 났다.
+  #    ⚠️ `aliases:` 로는 못 막는다 — 별칭은 대체가 아니라 **추가**라 서비스 키가 그대로 남는다(실측).
+  #    컨테이너명(container_name)은 그대로라 터널 인그레스는 영향받지 않는다.
+  mes-app:
     build:
       context: ../..
       dockerfile: Dockerfile
@@ -34,6 +41,16 @@ services:
       resources:
         limits:
           memory: 1.5G
+
+    # 디스크 상한(luma200ok/home-infra#16) — 호스트에 /etc/docker/daemon.json 이 없어
+    # json-file 이 **무제한**으로 쌓이는 상태다(2026-08-23 실측). restart: unless-stopped 와
+    # 겹치면 크래시 루프가 루트 파티션을 채우고, 그때는 메모리 상한과 똑같이 무관한 스택까지
+    # 동반 장애가 난다.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       SERVER_PORT: 8086
       SPRING_PROFILES_ACTIVE: prod
@@ -64,6 +81,8 @@ services:
       retries: 6
       start_period: 30s
 
+  # simulator 는 default 네트워크에만 있어 공유망 충돌 대상이 아니다 — 키를 그대로 둔다.
+  # 단 shared-net 에 조인하게 되면 반드시 `mes-simulator` 로 바꿀 것(home-infra#15).
   simulator:
     build:
       context: ../..
@@ -76,11 +95,21 @@ services:
       resources:
         limits:
           memory: 512M
+
+    # 디스크 상한(luma200ok/home-infra#16) — 호스트에 /etc/docker/daemon.json 이 없어
+    # json-file 이 **무제한**으로 쌓이는 상태다(2026-08-23 실측). restart: unless-stopped 와
+    # 겹치면 크래시 루프가 루트 파티션을 채우고, 그때는 메모리 상한과 똑같이 무관한 스택까지
+    # 동반 장애가 난다.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       MES_BASE_URL: http://mes:8086
       MES_SENSOR_API_KEY: ${MES_SENSOR_API_KEY:?required}
     networks:
       - default
     depends_on:
-      app:
+      mes-app:
         condition: service_healthy
