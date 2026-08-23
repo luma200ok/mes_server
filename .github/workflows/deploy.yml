@@ -4,17 +4,12 @@ name: MES Server CI/CD
 # 백엔드 jar + React(client/dist) 정적 + simulator 동시 배포.
 # 시크릿은 서버의 /etc/app-secrets/mes.env 에 보관.
 
+# [구 OCI 배포 — 2026-08-24 push 트리거 제거(#18)]
+# mes 실서비스는 홈서버 도커(deploy-home.yml)로 이전했다. push 트리거를 남겨 두면 머지마다
+# 아무도 안 쓰는 oci-arm2 에 배포가 돌고(현재 mes.service 는 failed), 성공하면 죽은 인스턴스가
+# 되살아나 같은 도메인·같은 DB 를 두 곳에서 물게 된다.
+# OCI 해지 전까지 수동 롤백 경로로 workflow_dispatch 만 남긴다.
 on:
-  push:
-    branches: [ "main" ]
-    paths:
-      - 'src/**'
-      - 'client/**'
-      - 'simulator/**'
-      - 'build.gradle'
-      - 'settings.gradle'
-      - 'gradle/**'
-      - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
 jobs:
