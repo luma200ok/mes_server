@@ -26,6 +26,14 @@ services:
       dockerfile: Dockerfile
     container_name: mes
     restart: unless-stopped
+    # 메모리 상한 — OOM killer는 원인 제공자가 아니라 그 순간 점수가 가장 높은 프로세스를 죽이므로,
+    # 상한 없는 컨테이너의 폭주가 같은 호스트의 무관한 컨테이너를 죽일 수 있다(홈서버 24개 컨테이너 전수 상한 없음, 2026-08-23).
+    # JAVA_OPTS(-Xmx512m)는 힙만 제한 — 실제 프로세스는 메타스페이스·코드 캐시·스레드 스택·다이렉트 버퍼·GC 구조를 추가로 쓴다.
+    # 실측 RSS 655MiB(힙 512m 설정 시)가 그 차이를 보여줌 → 힙의 약 3배를 상한으로 설정.
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
     environment:
       SERVER_PORT: 8086
       SPRING_PROFILES_ACTIVE: prod
@@ -62,6 +70,12 @@ services:
       dockerfile: deploy/home/Dockerfile.simulator
     container_name: mes-simulator
     restart: unless-stopped
+    # 메모리 상한 — 실측 RSS 18MiB(경량 시뮬레이터)이지만 상한 자체를 두어 폭주 시
+    # 무관한 컨테이너로 OOM 피해가 번지는 것을 차단(근거는 app 서비스 주석 참고).
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     environment:
       MES_BASE_URL: http://mes:8086
       MES_SENSOR_API_KEY: ${MES_SENSOR_API_KEY:?required}
