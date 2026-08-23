@@ -1,5 +1,6 @@
 package com.mes.global.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -11,6 +12,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -77,6 +80,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.internalServerError()
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(errorBody(ErrorCode.INTERNAL_SERVER_ERROR.getCode(), ErrorCode.INTERNAL_SERVER_ERROR.getMessage()));
+    }
+
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<Map<String, Object>> handleNotFound(Exception e, HttpServletRequest request) {
+        // 매핑되지 않은 경로 요청(대부분 봇/스캐너 트래픽) — 스택트레이스로 로그를 오염시키지 않도록 debug 레벨만 남긴다
+        log.debug("No handler found for request: {}", request.getRequestURI());
+        return ResponseEntity.status(ErrorCode.RESOURCE_NOT_FOUND.getHttpStatus())
+                .body(errorBody(ErrorCode.RESOURCE_NOT_FOUND.getCode(), ErrorCode.RESOURCE_NOT_FOUND.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

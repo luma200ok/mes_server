@@ -13,6 +13,7 @@ public enum ErrorCode {
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C002", "서버 내부 오류가 발생했습니다."),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "C003", "인증이 필요합니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "C004", "접근 권한이 없습니다."),
+    RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "C005", "요청한 경로를 찾을 수 없습니다."),
 
     // Auth
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "A001", "유효하지 않은 토큰입니다."),
