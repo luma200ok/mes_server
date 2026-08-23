@@ -84,8 +84,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
     public ResponseEntity<Map<String, Object>> handleNotFound(Exception e, HttpServletRequest request) {
-        // 매핑되지 않은 경로 요청(대부분 봇/스캐너 트래픽) — 스택트레이스로 로그를 오염시키지 않도록 debug 레벨만 남긴다
-        log.debug("No handler found for request: {}", request.getRequestURI());
+        // 매핑되지 않은 경로 요청(대부분 봇/스캐너 트래픽). 원래 문제는 이게 ERROR + 스택트레이스로 남아
+        // 진짜 장애 로그를 묻은 것이었다 — 스택트레이스는 버리되, 라우팅 실수(프론트가 오타 경로를 호출하는
+        // 실 트래픽 등)를 영영 못 보게 되지 않도록 한 줄 info 는 남긴다.
+        log.info("No handler found for request: {} {}", request.getMethod(), request.getRequestURI());
         return ResponseEntity.status(ErrorCode.RESOURCE_NOT_FOUND.getHttpStatus())
                 .body(errorBody(ErrorCode.RESOURCE_NOT_FOUND.getCode(), ErrorCode.RESOURCE_NOT_FOUND.getMessage()));
     }
